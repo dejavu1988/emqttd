@@ -20,78 +20,43 @@
 %%% SOFTWARE.
 %%%-----------------------------------------------------------------------------
 %%% @doc
-%%% emqttd authentication.
+%%% emqttd client manager supervisor.
 %%%
 %%% @end
 %%%-----------------------------------------------------------------------------
--module(emqttd_auth).
+-module(emqttd_cm_sup).
 
 -author('feng@emqtt.io').
 
 -include("emqttd.hrl").
 
--export([start_link/0,
-		add/2,
-		check/1, check/2,
-		delete/1]).
+-behaviour(supervisor).
 
--behavior(gen_server).
+%% API
+-export([start_link/0, table/0]).
 
--export([init/1,
-		handle_call/3,
-		handle_cast/2,
-		handle_info/2,
-		terminate/2,
-		code_change/3]).
+%% Supervisor callbacks
+-export([init/1]).
 
--define(TAB, ?MODULE).
+-define(CLIENT_TAB, mqtt_client).
 
 start_link() ->
-	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
--spec check({Usename :: binary(), Password :: binary()}) -> true | false.
-check({Username, Password}) ->
-	execute(check, [Username, Password]).
-
--spec check(Usename :: binary(), Password :: binary()) -> true | false.
-check(Username, Password) ->
-	execute(check, [Username, Password]).
-
--spec add(Usename :: binary(), Password :: binary()) -> ok.
-add(Username, Password) ->
-	execute(add, [Username, Password]).
-
--spec delete(Username :: binary()) -> ok.
-delete(Username) ->
-	execute(delete, [Username]).
-
-execute(F, Args) ->
-	[{_, M}] = ets:lookup(?TAB, mod), 
-	apply(M, F, Args).
+table() -> ?CLIENT_TAB.
 
 init([]) ->
-	{ok, {Name, Opts}} = application:get_env(auth),
-	AuthMod = authmod(Name),
-	ok = AuthMod:init(Opts),
-	ets:new(?TAB, [named_table, protected]),
-	ets:insert(?TAB, {mod, AuthMod}),
-	{ok, undefined}.
+    TabId = ets:new(?CLIENT_TAB, [set, named_table, public,
+                                  {write_concurrency, true}]),
+    Schedulers = erlang:system_info(schedulers),
+    gproc_pool:new(cm, hash, [{size, Schedulers}]),
+    Children = lists:map(
+                 fun(I) ->
+                    Name = {emqttd_cm, I},
+                    gproc_pool:add_worker(cm, Name, I),
+                    {Name, {emqttd_cm, start_link, [I, TabId]},
+                        permanent, 10000, worker, [emqttd_cm]}
+                 end, lists:seq(1, Schedulers)),
+    {ok, {{one_for_all, 10, 100}, Children}}.
 
-authmod(Name) when is_atom(Name) ->
-	list_to_atom(lists:concat(["emqttd_auth_", Name])).
-
-handle_call(Req, _From, State) ->
-	{stop, {badreq, Req}, State}.
-
-handle_cast(Msg, State) ->
-	{stop, {badmsg, Msg}, State}.
-
-handle_info(Info, State) ->
-	{stop, {badinfo, Info}, State}.
-
-terminate(_Reason, _State) ->
-	ok.
-
-code_change(_OldVsn, State, _Extra) ->
-	{ok, State}.
 

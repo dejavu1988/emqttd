@@ -26,7 +26,7 @@
 %%%-----------------------------------------------------------------------------
 -module(emqttd_event).
 
--include("emqttd_packet.hrl").
+-include_lib("emqtt/include/emqtt.hrl").
 
 %% API Function Exports
 -export([start_link/0,
@@ -75,13 +75,13 @@ init([]) ->
 handle_event({connected, ClientId, Params}, State = #state{systop = SysTop}) ->
     Topic = <<SysTop/binary, "clients/", ClientId/binary, "/connected">>,
     Msg = #mqtt_message{topic = Topic, payload = payload(connected, Params)},
-    emqttd_router:route(Msg),
+    emqttd_pubsub:publish(event, Msg),
     {ok, State};
 
 handle_event({disconnectd, ClientId, Reason}, State = #state{systop = SysTop}) ->
     Topic = <<SysTop/binary, "clients/", ClientId/binary, "/disconnected">>,
     Msg = #mqtt_message{topic = Topic, payload = payload(disconnected, Reason)},
-    emqttd_router:route(Msg),
+    emqttd_pubsub:publish(event, Msg),
     {ok, State};
 
 handle_event({subscribed, ClientId, TopicTable}, State) ->

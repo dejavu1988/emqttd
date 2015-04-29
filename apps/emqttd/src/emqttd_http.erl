@@ -28,9 +28,9 @@
 
 -author('feng@emqtt.io').
 
--include("emqttd.hrl").
+-include_lib("emqtt/include/emqtt.hrl").
 
--include("emqttd_packet.hrl").
+-include("emqttd.hrl").
 
 -import(proplists, [get_value/2, get_value/3]).
 
@@ -55,10 +55,10 @@ handle('POST', "/mqtt/publish", Req) ->
     Message = list_to_binary(get_value("message", Params)),
     case {validate(qos, Qos), validate(topic, Topic)} of
         {true, true} ->
-            emqttd_router:route(#mqtt_message{qos     = Qos,
-                                              retain  = Retain,
-                                              topic   = Topic,
-                                              payload = Message}),
+            emqttd_pubsub:publish(http, #mqtt_message{qos     = Qos,
+                                                      retain  = Retain,
+                                                      topic   = Topic,
+                                                      payload = Message}),
             Req:ok({"text/plan", <<"ok\n">>});
        {false, _} ->
             Req:respond({400, [], <<"Bad QoS">>});
@@ -77,7 +77,14 @@ authorized(Req) ->
 	undefined ->
 		false;
 	"Basic " ++ BasicAuth ->
-		emqttd_auth:check(user_passwd(BasicAuth))
+        {Username, Password} = user_passwd(BasicAuth),
+        case emqttd_access_control:auth(#mqtt_client{username = Username}, Password) of
+            ok ->
+                true;
+            {error, Reason} ->
+                lager:error("HTTP Auth failure: username=~s, reason=~p", [Username, Reason]),
+                false
+        end
 	end.
 
 user_passwd(BasicAuth) ->
@@ -87,7 +94,7 @@ validate(qos, Qos) ->
     (Qos >= ?QOS_0) and (Qos =< ?QOS_2); 
 
 validate(topic, Topic) ->
-    emqttd_topic:validate({name, Topic}).
+    emqtt_topic:validate({name, Topic}).
 
 int(S) -> list_to_integer(S).
 

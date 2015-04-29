@@ -48,7 +48,7 @@ start_session(ClientId, ClientPid) ->
 %%% Supervisor callbacks
 %%%=============================================================================
 init([SessOpts]) ->
-    {ok, {{simple_one_for_one, 0, 1},
+    {ok, {{simple_one_for_one, 10, 10},
           [{session, {emqttd_session, start_link, [SessOpts]},
               transient, 10000, worker, [emqttd_session]}]}}.
 

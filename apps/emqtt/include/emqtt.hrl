@@ -20,46 +20,50 @@
 %%% SOFTWARE.
 %%%-----------------------------------------------------------------------------
 %%% @doc
-%%% emqttd internal authentication.
+%%% MQTT Common Header.
 %%%
 %%% @end
 %%%-----------------------------------------------------------------------------
--module(emqttd_auth_internal).
 
--author('feng@emqtt.io').
+%%------------------------------------------------------------------------------
+%% MQTT Protocol Version and Levels
+%%------------------------------------------------------------------------------
+-define(MQTT_PROTO_V31,  3).
+-define(MQTT_PROTO_V311, 4).
 
--include("emqttd.hrl").
+-define(PROTOCOL_NAMES, [
+    {?MQTT_PROTO_V31, <<"MQIsdp">>},
+    {?MQTT_PROTO_V311, <<"MQTT">>}]).
 
--export([init/1, add/2, check/2, delete/1]).
+-type mqtt_vsn() :: ?MQTT_PROTO_V31 | ?MQTT_PROTO_V311.
 
--define(USER_TAB, mqtt_user).
+%%------------------------------------------------------------------------------
+%% QoS Levels
+%%------------------------------------------------------------------------------
 
-init(_Opts) ->
-	mnesia:create_table(?USER_TAB, [
-		{ram_copies, [node()]}, 
-		{attributes, record_info(fields, mqtt_user)}]),
-	mnesia:add_table_copy(?USER_TAB, node(), ram_copies),
-	ok.
+-define(QOS_0, 0).
+-define(QOS_1, 1).
+-define(QOS_2, 2).
 
-check(undefined, _) -> false;
+-define(IS_QOS(I), (I >= ?QOS_0 andalso I =< ?QOS_2)).
 
-check(_, undefined) -> false;
+-type mqtt_qos() :: ?QOS_0 | ?QOS_1 | ?QOS_2.
 
-check(Username, Password) when is_binary(Username), is_binary(Password) ->
-	PasswdHash = crypto:hash(md5, Password),	
-	case mnesia:dirty_read(?USER_TAB, Username) of
-	[#mqtt_user{passwdhash=PasswdHash}] -> true;
-	_ -> false
-	end.
-	
-add(Username, Password) when is_binary(Username) and is_binary(Password) ->
-	mnesia:dirty_write(
-        #mqtt_user{
-            username=Username, 
-            passwdhash=crypto:hash(md5, Password)
-        }
-    ).
+%%------------------------------------------------------------------------------
+%% MQTT Message
+%%------------------------------------------------------------------------------
 
-delete(Username) when is_binary(Username) ->
-	mnesia:dirty_delete(?USER_TAB, Username).
+-type mqtt_msgid() :: undefined | 1..16#ffff.
+
+-record(mqtt_message, {
+    %% topic is first for message may be retained
+    topic           :: binary(),
+    qos    = ?QOS_0 :: mqtt_qos(),
+    retain = false  :: boolean(),
+    dup    = false  :: boolean(),
+    msgid           :: mqtt_msgid(),
+    payload         :: binary()
+}).
+
+-type mqtt_message() :: #mqtt_message{}.
 

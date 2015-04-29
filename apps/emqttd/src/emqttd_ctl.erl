@@ -37,6 +37,7 @@
     io:format(Format, Args)).
 
 -export([status/1,
+         vm/1,
          broker/1,
          stats/1,
          metrics/1,
@@ -67,9 +68,7 @@ cluster([SNode]) ->
 	pong ->
 		application:stop(emqttd),
         application:stop(esockd),
-		mnesia:stop(),
-		mnesia:start(),
-		mnesia:change_config(extra_db_nodes, [Node]),
+        emqttd_mnesia:cluster(Node),
         application:start(esockd),
 		application:start(emqttd),
 		?PRINT("cluster with ~p successfully.~n", [Node]);
@@ -77,12 +76,31 @@ cluster([SNode]) ->
         ?PRINT("failed to connect to ~p~n", [Node])
 	end.
 
-
 useradd([Username, Password]) ->
-	?PRINT("~p", [emqttd_auth:add(list_to_binary(Username), list_to_binary(Password))]).
+	?PRINT("~p~n", [emqttd_auth_username:add_user(bin(Username), bin(Password))]).
 
 userdel([Username]) ->
-	?PRINT("~p", [emqttd_auth:delete(list_to_binary(Username))]).
+	?PRINT("~p~n", [emqttd_auth_username:remove_user(bin(Username))]).
+
+vm([]) ->
+    [vm([Name]) || Name <- ["load", "memory", "process", "io"]];
+
+vm(["load"]) ->
+    ?PRINT_MSG("Load: ~n"),
+    [?PRINT("  ~s:~s~n", [L, V]) || {L, V} <- emqttd_vm:loads()];
+
+vm(["memory"]) ->
+    ?PRINT_MSG("Memory: ~n"),
+    [?PRINT("  ~s:~p~n", [Cat, Val]) || {Cat, Val} <- erlang:memory()];
+
+vm(["process"]) ->
+    ?PRINT_MSG("Process: ~n"),
+    ?PRINT("  process_limit:~p~n", [erlang:system_info(process_limit)]),
+    ?PRINT("  process_count:~p~n", [erlang:system_info(process_count)]);
+
+vm(["io"]) ->
+    ?PRINT_MSG("IO: ~n"),
+    ?PRINT("  max_fds:~p~n", [proplists:get_value(max_fds, erlang:system_info(check_io))]).
 
 broker([]) ->
     Funs = [sysdescr, version, uptime, datetime],
@@ -108,13 +126,13 @@ bridges(["list"]) ->
         end, emqttd_bridge_sup:bridges());
 
 bridges(["start", SNode, Topic]) ->
-    case emqttd_bridge_sup:start_bridge(list_to_atom(SNode), list_to_binary(Topic)) of
+    case emqttd_bridge_sup:start_bridge(list_to_atom(SNode), bin(Topic)) of
         {ok, _} -> ?PRINT_MSG("bridge is started.~n"); 
         {error, Error} -> ?PRINT("error: ~p~n", [Error])
     end;
 
 bridges(["stop", SNode, Topic]) ->
-    case emqttd_bridge_sup:stop_bridge(list_to_atom(SNode), list_to_binary(Topic)) of
+    case emqttd_bridge_sup:stop_bridge(list_to_atom(SNode), bin(Topic)) of
         ok -> ?PRINT_MSG("bridge is stopped.~n");
         {error, Error} -> ?PRINT("error: ~p~n", [Error])
     end.
@@ -156,4 +174,6 @@ node_name(SNode) ->
     end,
     list_to_atom(SNode1).
 
+bin(S) when is_list(S) -> list_to_binary(S);
+bin(B) when is_binary(B) -> B.
 

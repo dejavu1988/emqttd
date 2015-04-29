@@ -1,23 +1,18 @@
-# eMQTTD [![Build Status](https://travis-ci.org/emqtt/emqttd.svg?branch=master)](https://travis-ci.org/emqtt/emqttd)
+## Overview [![Build Status](https://travis-ci.org/emqtt/emqttd.svg?branch=master)](https://travis-ci.org/emqtt/emqttd)
 
-eMQTTD is a clusterable, massively scalable, fault-tolerant and extensible MQTT V3.1/V3.1.1 broker written in Erlang/OTP.
+emqttd is a clusterable, massively scalable MQTT V3.1/V3.1.1 broker written in Erlang/OTP. emqttd support both MQTT V3.1/V3.1.1 Protocol Specification.
 
-eMQTTD support MQTT V3.1/V3.1.1 Protocol Specification.
+emqttd requires Erlang R17+ to build.
 
-eMQTTD requires Erlang R17+.
+## Download
 
+Download binary packeges for linux, mac and freebsd from [http://emqtt.io/downloads](http://emqtt.io/downloads)
 
 ## Benchmark
 
-Benchmark 0.5.4-alpha on a ubuntu/14.04 server with 8 cores, 32G memory from QingCloud:
+Benchmark 0.6.1-alpha on a ubuntu/14.04 server with 8 cores, 32G memory from QingCloud:
 
-200K Connections, 200K Topics, 20K Messages/sec, 20Mbps In/Out with 7G Memory, 40%CPU/core
-
-
-## NOTICE
-
-eMQTTD still cannot handle massive retained messages.
-
+200K+ Connections, 200K+ Topics, 20K+ In/Out Messages/sec, 20Mbps+ In/Out with 8G Memory, 50%CPU/core
 
 ## Featues
 
@@ -147,12 +142,12 @@ Run './bin/emqttd_ctl cluster' on 'host1' or 'host2' to check cluster nodes.
 
 ## HTTP API
 
-eMQTTD support http to publish message.
+emqttd support http to publish message.
 
 Example:
 
 ```
-curl -v --basic -u user:passwd -d "qos=1&retain=0&topic=/a/b/c&message=hello from http..." -k http://localhost:8083/mqtt/publish
+curl -v --basic -u user:passwd -d "qos=1&retain=0&topic=a/b/c&message=hello from http..." -k http://localhost:8083/mqtt/publish
 ```
 
 ### URL
@@ -187,4 +182,6 @@ feng at emqtt.io
 @hejin1026 (260495915 at qq.com)
 
 @desoulter (assoulter123 at gmail.com)
+
+@turtleDeng
 

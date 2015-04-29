@@ -28,30 +28,19 @@
 
 -author('feng@emqtt.io').
 
--define(PRINT_MSG(Msg), io:format(Msg)).
-
--define(PRINT(Format, Args), io:format(Format, Args)).
-
 -behaviour(application).
 
 %% Application callbacks
 -export([start/2, stop/1]).
 
+-define(PRINT_MSG(Msg), io:format(Msg)).
+
+-define(PRINT(Format, Args), io:format(Format, Args)).
+
 %%%=============================================================================
 %%% Application callbacks
 %%%=============================================================================
 
-%%------------------------------------------------------------------------------
-%% @private
-%% @doc
-%% This function is called whenever an application is started using
-%% application:start/[1,2], and should start the processes of the
-%% application. If the application is structured according to the OTP
-%% design principles as a supervision tree, this means starting the
-%% top supervisor of the tree.
-%%
-%% @end
-%%------------------------------------------------------------------------------
 -spec start(StartType, StartArgs) -> {ok, pid()} | {ok, pid(), State} | {error, Reason} when 
     StartType :: normal | {takeover, node()} | {failover, node()},
     StartArgs :: term(),
@@ -59,9 +48,9 @@
     Reason    :: term().
 start(_StartType, _StartArgs) ->
 	print_banner(),
+    emqttd_mnesia:start(),
     {ok, Sup} = emqttd_sup:start_link(),
 	start_servers(Sup),
-    ok = emqttd_mnesia:wait(),
 	{ok, Listeners} = application:get_env(listen),
     emqttd:open(Listeners),
 	register(emqttd, self()),
@@ -78,37 +67,40 @@ print_vsn() ->
 
 start_servers(Sup) ->
     {ok, SessOpts} = application:get_env(session),
-    {ok, RetainOpts} = application:get_env(retain),
+    {ok, PubSubOpts} = application:get_env(pubsub),
     {ok, BrokerOpts} = application:get_env(broker),
     {ok, MetricOpts} = application:get_env(metrics),
-	lists:foreach(
-        fun({Name, F}) when is_function(F) ->
-			?PRINT("~s is starting...", [Name]),
-            F(),
-			?PRINT_MSG("[done]~n");
-		   ({Name, Server}) ->
-			?PRINT("~s is starting...", [Name]),
-			start_child(Sup, Server),
-			?PRINT_MSG("[done]~n");
-           ({Name, Server, Opts}) ->
-			?PRINT("~s is starting...", [ Name]),
-			start_child(Sup, Server, Opts),
-			?PRINT_MSG("[done]~n")
-		end,
-	 	[{"emqttd config", emqttd_config},
-	 	 {"emqttd event", emqttd_event},
-		 {"emqttd server", emqttd_server, RetainOpts},
-         {"emqttd client manager", emqttd_cm},
-         {"emqttd session manager", emqttd_sm},
-         {"emqttd session supervisor", {supervisor, emqttd_session_sup}, SessOpts},
-         {"emqttd auth", emqttd_auth},
-		 {"emqttd pubsub", emqttd_pubsub},
-		 {"emqttd router", emqttd_router},
-		 {"emqttd broker", emqttd_broker,   BrokerOpts},
-		 {"emqttd metrics", emqttd_metrics, MetricOpts},
-         {"emqttd bridge supervisor", {supervisor, emqttd_bridge_sup}},
-		 {"emqttd monitor", emqttd_monitor}
-		]).
+    {ok, AccessOpts} = application:get_env(access_control),
+    Servers = [
+            {"emqttd config", emqttd_config},
+            {"emqttd event", emqttd_event},
+            {"emqttd pooler", {supervisor, emqttd_pooler_sup}},
+            {"emqttd client manager", {supervisor, emqttd_cm_sup}},
+            {"emqttd session manager", emqttd_sm},
+            {"emqttd session supervisor", {supervisor, emqttd_session_sup}, SessOpts},
+            {"emqttd pubsub", {supervisor, emqttd_pubsub_sup}, PubSubOpts},
+            %{"emqttd router", emqttd_router},
+            {"emqttd broker", emqttd_broker, BrokerOpts},
+            {"emqttd metrics", emqttd_metrics, MetricOpts},
+            {"emqttd bridge supervisor", {supervisor, emqttd_bridge_sup}},
+            {"emqttd access control", emqttd_access_control, AccessOpts},
+            {"emqttd system monitor", emqttd_sysmon}],
+    [start_server(Sup, Server) || Server <- Servers].
+
+start_server(_Sup, {Name, F}) when is_function(F) ->
+    ?PRINT("~s is starting...", [Name]),
+    F(),
+    ?PRINT_MSG("[done]~n");
+
+start_server(Sup, {Name, Server}) ->
+    ?PRINT("~s is starting...", [Name]),
+    start_child(Sup, Server),
+    ?PRINT_MSG("[done]~n");
+
+start_server(Sup, {Name, Server, Opts}) ->
+    ?PRINT("~s is starting...", [ Name]),
+    start_child(Sup, Server, Opts),
+    ?PRINT_MSG("[done]~n").
 
 start_child(Sup, {supervisor, Name}) ->
     supervisor:start_child(Sup, supervisor_spec(Name));
@@ -140,18 +132,7 @@ worker_spec(Name, Opts) ->
         {Name, start_link, [Opts]},
             permanent, 5000, worker, [Name]}.
 
-%%------------------------------------------------------------------------------
-%% @private
-%% @doc
-%% This function is called whenever an application has stopped. It
-%% is intended to be the opposite of Module:start/2 and should do
-%% any necessary cleaning up. The return value is ignored.
-%%
-%% @end
-%%------------------------------------------------------------------------------
 -spec stop(State :: term()) -> term().
 stop(_State) ->
     ok.
-
-
 

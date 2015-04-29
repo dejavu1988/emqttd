@@ -26,7 +26,9 @@
 %%%-----------------------------------------------------------------------------
 -module(emqttd_metrics).
 
--include("emqttd_packet.hrl").
+-author('feng@emqtt.io').
+
+-include_lib("emqtt/include/emqtt.hrl").
 
 -include("emqttd_systop.hrl").
 
@@ -218,7 +220,8 @@ systop(Name) when is_atom(Name) ->
     list_to_binary(lists:concat(["$SYS/brokers/", node(), "/", Name])).
 
 publish(Topic, Payload) ->
-    emqttd_router:route(#mqtt_message{topic = Topic, payload = Payload}).
+    emqttd_pubsub:publish(metrics, #mqtt_message{topic = Topic,
+                                                 payload = Payload}).
 
 new_metric({gauge, Name}) ->
     ets:insert(?METRIC_TAB, {{Name, 0}, 0});

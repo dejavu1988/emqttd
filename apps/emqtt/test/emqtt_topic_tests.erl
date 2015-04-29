@@ -19,11 +19,9 @@
 %% OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 %% SOFTWARE.
 %%------------------------------------------------------------------------------
--module(emqttd_topic_tests).
+-module(emqtt_topic_tests).
 
--include("emqttd_topic.hrl").
-
--import(emqttd_topic, [validate/1, type/1, match/2, triples/1, words/1]).
+-import(emqtt_topic, [validate/1, wildcard/1, match/2, triples/1, words/1]).
 
 -ifdef(TEST).
 
@@ -101,9 +99,9 @@ triples_perf_test() ->
     ok.
 
 type_test() ->
-	?assertEqual(direct, type(#topic{name = <<"/a/b/cdkd">>})),
-	?assertEqual(wildcard, type(#topic{name = <<"/a/+/d">>})),
-	?assertEqual(wildcard, type(#topic{name = <<"/a/b/#">>})).
+	?assertEqual(false, wildcard(<<"/a/b/cdkd">>)),
+	?assertEqual(true, wildcard(<<"/a/+/d">>)),
+	?assertEqual(true, wildcard(<<"/a/b/#">>)).
 
 words_test() ->
     ?assertMatch(['', <<"abkc">>, <<"19383">>, '+', <<"akakdkkdkak">>, '#'],  words(<<"/abkc/19383/+/akakdkkdkak/#">>)),

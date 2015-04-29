@@ -32,24 +32,18 @@
 
 -define(SERVER, ?MODULE).
 
--define(CLIENT_TAB, mqtt_client).
-
 %% API Exports 
--export([start_link/0]).
+-export([start_link/2]).
 
--export([lookup/1, register/2, unregister/2]).
-
--export([getstats/0]).
+-export([lookup/1, register/1, unregister/1]).
 
 %% gen_server Function Exports
--export([init/1,
-		 handle_call/3,
-		 handle_cast/2,
-		 handle_info/2,
-         terminate/2,
-		 code_change/3]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+         terminate/2, code_change/3]).
 
--record(state, {max = 0}).
+-record(state, {tab}).
+
+-define(POOL, cm).
 
 %%%=============================================================================
 %%% API
@@ -61,9 +55,11 @@
 %%
 %% @end
 %%------------------------------------------------------------------------------
--spec start_link() -> {ok, pid()} | ignore | {error, any()}.
-start_link() ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+-spec start_link(Id, TabId) -> {ok, pid()} | ignore | {error, any()} when
+        Id :: pos_integer(),
+        TabId :: ets:tid().
+start_link(Id, TabId) ->
+    gen_server:start_link(?MODULE, [Id, TabId], []).
 
 %%------------------------------------------------------------------------------
 %% @doc
@@ -73,21 +69,19 @@ start_link() ->
 %%------------------------------------------------------------------------------
 -spec lookup(ClientId :: binary()) -> pid() | undefined.
 lookup(ClientId) when is_binary(ClientId) ->
-	case ets:lookup(?CLIENT_TAB, ClientId) of
+    case ets:lookup(emqttd_cm_sup:table(), ClientId) of
 	[{_, Pid, _}] -> Pid;
 	[] -> undefined
 	end.
 
 %%------------------------------------------------------------------------------
-%% @doc
-%% Register clientId with pid.
-%%
+%% @doc Register clientId with pid.
 %% @end
 %%------------------------------------------------------------------------------
--spec register(ClientId :: binary(), Pid :: pid()) -> ok.
-register(ClientId, Pid) when is_binary(ClientId), is_pid(Pid) ->
-    %%TODO: infinify to block requests when too many clients, this will be redesinged in 0.9.x...
-	gen_server:call(?SERVER, {register, ClientId, Pid}, infinity).
+-spec register(ClientId :: binary()) -> ok.
+register(ClientId) when is_binary(ClientId) ->
+    CmPid = gproc_pool:pick_worker(?POOL, ClientId),
+    gen_server:call(CmPid, {register, ClientId, self()}, infinity).
 
 %%------------------------------------------------------------------------------
 %% @doc
@@ -95,54 +89,43 @@ register(ClientId, Pid) when is_binary(ClientId), is_pid(Pid) ->
 %%
 %% @end
 %%------------------------------------------------------------------------------
--spec unregister(ClientId :: binary(), Pid :: pid()) -> ok.
-unregister(ClientId, Pid) when is_binary(ClientId), is_pid(Pid) ->
-	gen_server:cast(?SERVER, {unregister, ClientId, Pid}).
-
-%%------------------------------------------------------------------------------
-%% @doc
-%% Get statistics of client manager.
-%%
-%% @end
-%%------------------------------------------------------------------------------
-getstats() ->
-    gen_server:call(?SERVER, getstats).
+-spec unregister(ClientId :: binary()) -> ok.
+unregister(ClientId) when is_binary(ClientId) ->
+    CmPid = gproc_pool:pick_worker(?POOL, ClientId),
+    gen_server:cast(CmPid, {unregister, ClientId, self()}).
 
 %%%=============================================================================
 %%% gen_server callbacks
 %%%=============================================================================
 
-init([]) ->
-	ets:new(?CLIENT_TAB, [set, named_table, protected]),
-    {ok, #state{}}.
+init([Id, TabId]) ->
+    gproc_pool:connect_worker(?POOL, {?MODULE, Id}),
+    {ok, #state{tab = TabId}}.
 
-handle_call({register, ClientId, Pid}, _From, State) ->
-	case ets:lookup(?CLIENT_TAB, ClientId) of
+handle_call({register, ClientId, Pid}, _From, State = #state{tab = Tab}) ->
+	case ets:lookup(Tab, ClientId) of
         [{_, Pid, _}] ->
 			lager:error("clientId '~s' has been registered with ~p", [ClientId, Pid]),
             ignore;
 		[{_, OldPid, MRef}] ->
+			lager:error("clientId '~s' is duplicated: pid=~p, oldpid=~p", [ClientId, Pid, OldPid]),
 			OldPid ! {stop, duplicate_id, Pid},
 			erlang:demonitor(MRef),
-            insert(ClientId, Pid);
+            ets:insert(Tab, {ClientId, Pid, erlang:monitor(process, Pid)});
 		[] -> 
-            insert(ClientId, Pid)
+            ets:insert(Tab, {ClientId, Pid, erlang:monitor(process, Pid)})
 	end,
-	{reply, ok, setstats(State)};
+    {reply, ok, State};
 
-handle_call(getstats, _From, State = #state{max = Max}) ->
-    Stats = [{'clients/count', ets:info(?CLIENT_TAB, size)},
-             {'clients/max', Max}],
-    {reply, Stats, State};
+handle_call(Req, _From, State) ->
+    lager:error("unexpected request: ~p", [Req]),
+    {reply, {error, badreq}, State}.
 
-handle_call(_Request, _From, State) ->
-    {reply, ok, State}.
-
-handle_cast({unregister, ClientId, Pid}, State) ->
-	case ets:lookup(?CLIENT_TAB, ClientId) of
+handle_cast({unregister, ClientId, Pid}, State = #state{tab = TabId}) ->
+	case ets:lookup(TabId, ClientId) of
 	[{_, Pid, MRef}] ->
 		erlang:demonitor(MRef, [flush]),
-		ets:delete(?CLIENT_TAB, ClientId);
+		ets:delete(TabId, ClientId);
 	[_] -> 
 		ignore;
 	[] ->
@@ -153,8 +136,8 @@ handle_cast({unregister, ClientId, Pid}, State) ->
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-handle_info({'DOWN', MRef, process, DownPid, _Reason}, State) ->
-	ets:match_delete(?CLIENT_TAB, {'_', DownPid, MRef}),
+handle_info({'DOWN', MRef, process, DownPid, _Reason}, State = #state{tab = TabId}) ->
+	ets:match_delete(TabId, {'_', DownPid, MRef}),
     {noreply, setstats(State)};
 
 handle_info(_Info, State) ->
@@ -170,18 +153,9 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%=============================================================================
 
-insert(ClientId, Pid) ->
-    ets:insert(?CLIENT_TAB, {ClientId, Pid, erlang:monitor(process, Pid)}).
-
-setstats(State = #state{max = Max}) ->
-    Count = ets:info(?CLIENT_TAB, size),
-    emqttd_broker:setstat('clients/count', Count),
-    if
-        Count > Max ->
-            emqttd_broker:setstat('clients/max', Count),
-            State#state{max = Count};
-        true -> 
-            State
-    end.
+setstats(State = #state{tab = TabId}) ->
+    emqttd_broker:setstats('clients/count',
+                           'clients/max',
+                           ets:info(TabId, size)), State.
 
 

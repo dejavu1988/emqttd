@@ -20,15 +20,17 @@
 %%% SOFTWARE.
 %%%-----------------------------------------------------------------------------
 %%% @doc
-%%% emqttd received packet parser.
+%%% emqtt packet parser.
 %%%
 %%% @end
 %%%-----------------------------------------------------------------------------
--module(emqttd_parser).
+-module(emqtt_parser).
 
 -author("feng@emqtt.io").
 
--include("emqttd_packet.hrl").
+-include("emqtt.hrl").
+
+-include("emqtt_packet.hrl").
 
 %% API
 -export([init/1, parse/2]).
@@ -114,7 +116,7 @@ parse_frame(Bin, #mqtt_packet_header{type = Type, qos  = Qos} = Header, Length) 
                            will_flag   = bool(WillFlag),
                            clean_sess  = bool(CleanSession),
                            keep_alive  = KeepAlive,
-                           client_id   = ClientId,
+                           clientid   = ClientId,
                            will_topic  = WillTopic,
                            will_msg    = WillMsg,
                            username    = UserName,

@@ -28,13 +28,13 @@
 
 -author('feng@emqtt.io').
 
--export([init/1, add/2, check/2, delete/1]).
+-behaviour(emqttd_auth_mod).
 
-init(_Opts) -> ok.
+-export([init/1, check/3, description/0]).
 
-check(_, _) -> true.
+init(Opts) -> {ok, Opts}.
 
-add(_, _) -> ok.
+check(_User, _Password, _Opts) -> ok.
 
-delete(_Username) -> ok.
+description() -> "Anonymous authentication module".
 

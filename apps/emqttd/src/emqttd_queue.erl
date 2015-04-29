@@ -29,7 +29,7 @@
 
 -module(emqttd_queue).
 
--include("emqttd_packet.hrl").
+-include_lib("emqtt/include/emqtt.hrl").
 
 -export([new/1, new/2, in/3, all/1, clear/1]).
 

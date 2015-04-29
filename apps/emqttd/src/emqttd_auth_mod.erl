@@ -20,10 +20,37 @@
 %%% SOFTWARE.
 %%%-----------------------------------------------------------------------------
 %%% @doc
-%%% emqttd ACL.
+%%% emqttd authentication behaviour.
 %%%
 %%% @end
 %%%-----------------------------------------------------------------------------
--module(emqttd_acl).
+-module(emqttd_auth_mod).
 
-%%TODO: 0.6.0...
+-author('feng@emqtt.io').
+
+-include("emqttd.hrl").
+
+%%%=============================================================================
+%%% Auth behavihour
+%%%=============================================================================
+
+-ifdef(use_specs).
+
+-callback check(Client, Password, State) -> ok | ignore | {error, string()} when
+    Client    :: mqtt_client(),
+    Password  :: binary(),
+    State     :: any().
+
+-callback description() -> string().
+
+-else.
+
+-export([behaviour_info/1]).
+
+behaviour_info(callbacks) ->
+        [{check, 3}, {description, 0}];
+behaviour_info(_Other) ->
+        undefined.
+
+-endif.
+

@@ -39,14 +39,14 @@
         code_change/3,
         terminate/2]).
 
--include("emqttd.hrl").
+-include_lib("emqtt/include/emqtt.hrl").
 
--include("emqttd_packet.hrl").
+-include_lib("emqtt/include/emqtt_packet.hrl").
 
 %%Client State...
 -record(state, {transport,
                 socket,
-                peer_name,
+                peername,
                 conn_name,
                 await_recv,
                 conn_state,
@@ -66,14 +66,14 @@ info(Pid) ->
 init([SockArgs = {Transport, Sock, _SockFun}, PacketOpts]) ->
     %transform if ssl.
     {ok, NewSock} = esockd_connection:accept(SockArgs),
-    {ok, Peername} = emqttd_net:peer_string(Sock),
+    {ok, Peername} = emqttd_net:peername(Sock),
     {ok, ConnStr} = emqttd_net:connection_string(Sock, inbound),
     lager:info("Connect from ~s", [ConnStr]),
-    ParserState = emqttd_parser:init(PacketOpts),
+    ParserState = emqtt_parser:init(PacketOpts),
     ProtoState = emqttd_protocol:init({Transport, NewSock, Peername}, PacketOpts),
     State = control_throttle(#state{transport    = Transport,
                                     socket       = NewSock,
-                                    peer_name    = Peername,
+                                    peername     = Peername,
                                     conn_name    = ConnStr,
                                     await_recv   = false,
                                     conn_state   = running,
@@ -103,10 +103,17 @@ handle_info({stop, duplicate_id, _NewPid}, State=#state{proto_state = ProtoState
     %% need transfer data???
     %% emqttd_client:transfer(NewPid, Data),
     lager:error("Shutdown for duplicate clientid: ~s, conn:~s", 
-        [emqttd_protocol:client_id(ProtoState), ConnName]), 
+        [emqttd_protocol:clientid(ProtoState), ConnName]), 
     stop({shutdown, duplicate_id}, State);
 
 %%TODO: ok??
+handle_info({dispatch, {From, Messages}}, #state{proto_state = ProtoState} = State) when is_list(Messages) ->
+    ProtoState1 =
+    lists:foldl(fun(Message, PState) ->
+            {ok, PState1} = emqttd_protocol:send({From, Message}, PState), PState1
+        end, ProtoState, Messages),
+    {noreply, State#state{proto_state = ProtoState1}};
+
 handle_info({dispatch, {From, Message}}, #state{proto_state = ProtoState} = State) ->
     {ok, ProtoState1} = emqttd_protocol:send({From, Message}, ProtoState),
     {noreply, State#state{proto_state = ProtoState1}};
@@ -118,8 +125,8 @@ handle_info({redeliver, {?PUBREL, PacketId}}, #state{proto_state = ProtoState} =
 handle_info({inet_reply, _Ref, ok}, State) ->
     {noreply, State, hibernate};
 
-handle_info({inet_async, Sock, _Ref, {ok, Data}}, State = #state{peer_name = PeerName, socket = Sock}) ->
-    lager:debug("RECV from ~s: ~p", [PeerName, Data]),
+handle_info({inet_async, Sock, _Ref, {ok, Data}}, State = #state{peername = Peername, socket = Sock}) ->
+    lager:debug("RECV from ~s: ~p", [emqttd_net:format(Peername), Data]),
     emqttd_metrics:inc('bytes/received', size(Data)),
     process_received_bytes(Data,
                            control_throttle(State #state{await_recv = false}));
@@ -127,31 +134,31 @@ handle_info({inet_async, Sock, _Ref, {ok, Data}}, State = #state{peer_name = Pee
 handle_info({inet_async, _Sock, _Ref, {error, Reason}}, State) ->
     network_error(Reason, State);
 
-handle_info({inet_reply, _Sock, {error, Reason}}, State = #state{peer_name = PeerName}) ->
-    lager:critical("Client ~s: unexpected inet_reply '~p'", [PeerName, Reason]),
+handle_info({inet_reply, _Sock, {error, Reason}}, State = #state{peername = Peername}) ->
+    lager:critical("Client ~s: unexpected inet_reply '~p'", [emqttd_net:format(Peername), Reason]),
     {noreply, State};
 
-handle_info({keepalive, start, TimeoutSec}, State = #state{transport = Transport, socket = Socket}) ->
-    lager:debug("Client ~s: Start KeepAlive with ~p seconds", [State#state.peer_name, TimeoutSec]),
+handle_info({keepalive, start, TimeoutSec}, State = #state{transport = Transport, socket = Socket, peername = Peername}) ->
+    lager:debug("Client ~s: Start KeepAlive with ~p seconds", [emqttd_net:format(Peername), TimeoutSec]),
     KeepAlive = emqttd_keepalive:new({Transport, Socket}, TimeoutSec, {keepalive, timeout}),
     {noreply, State#state{ keepalive = KeepAlive }};
 
-handle_info({keepalive, timeout}, State = #state{keepalive = KeepAlive}) ->
+handle_info({keepalive, timeout}, State = #state{peername = Peername, keepalive = KeepAlive}) ->
     case emqttd_keepalive:resume(KeepAlive) of
     timeout ->
-        lager:debug("Client ~s: Keepalive Timeout!", [State#state.peer_name]),
+        lager:debug("Client ~s: Keepalive Timeout!", [emqttd_net:format(Peername)]),
         stop({shutdown, keepalive_timeout}, State#state{keepalive = undefined});
     {resumed, KeepAlive1} ->
-        lager:debug("Client ~s: Keepalive Resumed", [State#state.peer_name]),
+        lager:debug("Client ~s: Keepalive Resumed", [emqttd_net:format(Peername)]),
         {noreply, State#state{keepalive = KeepAlive1}}
     end;
 
-handle_info(Info, State = #state{peer_name = PeerName}) ->
-    lager:critical("Client ~s: unexpected info ~p",[PeerName, Info]),
+handle_info(Info, State = #state{peername = Peername}) ->
+    lager:critical("Client ~s: unexpected info ~p",[emqttd_net:format(Peername), Info]),
     {stop, {badinfo, Info}, State}.
 
-terminate(Reason, #state{peer_name = PeerName, keepalive = KeepAlive, proto_state = ProtoState}) ->
-    lager:debug("Client ~s: ~p terminated, reason: ~p~n", [PeerName, self(), Reason]),
+terminate(Reason, #state{peername = Peername, keepalive = KeepAlive, proto_state = ProtoState}) ->
+    lager:debug("Client ~s: ~p terminated, reason: ~p~n", [emqttd_net:format(Peername), self(), Reason]),
     notify(disconnected, Reason, ProtoState),
     emqttd_keepalive:cancel(KeepAlive),
     case {ProtoState, Reason} of
@@ -176,7 +183,7 @@ process_received_bytes(Bytes, State = #state{packet_opts = PacketOpts,
                                              parse_state = ParseState,
                                              proto_state = ProtoState,
                                              conn_name   = ConnStr}) ->
-    case emqttd_parser:parse(Bytes, ParseState) of
+    case emqtt_parser:parse(Bytes, ParseState) of
     {more, ParseState1} ->
         {noreply,
          control_throttle(State #state{parse_state = ParseState1}),
@@ -185,7 +192,7 @@ process_received_bytes(Bytes, State = #state{packet_opts = PacketOpts,
         received_stats(Packet),
         case emqttd_protocol:received(Packet, ProtoState) of
         {ok, ProtoState1} ->
-            process_received_bytes(Rest, State#state{parse_state = emqttd_parser:init(PacketOpts),
+            process_received_bytes(Rest, State#state{parse_state = emqtt_parser:init(PacketOpts),
                                                      proto_state = ProtoState1});
         {error, Error} ->
             lager:error("MQTT protocol error ~p for connection ~p~n", [Error, ConnStr]),
@@ -201,8 +208,9 @@ process_received_bytes(Bytes, State = #state{packet_opts = PacketOpts,
     end.
 
 %%----------------------------------------------------------------------------
-network_error(Reason, State = #state{peer_name = PeerName}) ->
-    lager:warning("Client ~s: MQTT detected network error '~p'", [PeerName, Reason]),
+network_error(Reason, State = #state{peername = Peername}) ->
+    lager:warning("Client ~s: MQTT detected network error '~p'",
+                    [emqttd_net:format(Peername), Reason]),
     stop({shutdown, conn_closed}, State).
 
 run_socket(State = #state{conn_state = blocked}) ->
@@ -247,7 +255,7 @@ inc(_) ->
 notify(disconnected, _Reason, undefined) -> ingore;
 
 notify(disconnected, {shutdown, Reason}, ProtoState) ->
-    emqttd_event:notify({disconnected, emqttd_protocol:client_id(ProtoState), [{reason, Reason}]});
+    emqttd_event:notify({disconnected, emqttd_protocol:clientid(ProtoState), [{reason, Reason}]});
 
 notify(disconnected, Reason, ProtoState) ->
-    emqttd_event:notify({disconnected, emqttd_protocol:client_id(ProtoState), [{reason, Reason}]}).
+    emqttd_event:notify({disconnected, emqttd_protocol:clientid(ProtoState), [{reason, Reason}]}).

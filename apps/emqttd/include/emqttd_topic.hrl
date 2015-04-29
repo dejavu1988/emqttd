@@ -1,4 +1,4 @@
-%%-----------------------------------------------------------------------------
+%%------------------------------------------------------------------------------
 %% Copyright (c) 2012-2015, Feng Lee <feng@emqtt.io>
 %% 
 %% Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -19,37 +19,30 @@
 %% OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 %% SOFTWARE.
 %%------------------------------------------------------------------------------
+%%% @doc
+%%% emqtt topic header.
+%%%
+%%% @end
+%%%-----------------------------------------------------------------------------
 
 %%------------------------------------------------------------------------------
-%% Core PubSub Topic
+%% MQTT Topic
 %%------------------------------------------------------------------------------
 -record(topic, {
-    name           :: binary(),
-    %type = dynamic :: static | dynamic | bridge,
-    node           :: node()
+    name  :: binary(),
+    node  :: node()
 }).
 
 -type topic() :: #topic{}.
 
+%%------------------------------------------------------------------------------
+%% MQTT Topic Subscriber
+%%------------------------------------------------------------------------------
 -record(topic_subscriber, {
     topic    :: binary(),
-    qos = 0  :: non_neg_integer(),
+    qos = 0  :: 0 | 1 | 2,
     subpid   :: pid()
 }).
 
--record(topic_trie_node, {
-    node_id        	:: binary() | atom(),
-    edge_count = 0  :: non_neg_integer(),
-    topic    		:: binary()
-}).
-
--record(topic_trie_edge, {
-    node_id :: binary() | atom(),
-    word    :: binary() | atom()
-}).
-
--record(topic_trie, {
-    edge    :: #topic_trie_edge{},
-    node_id :: binary() | atom()
-}).
+-type topic_subscriber() :: #topic_subscriber{}.
 
