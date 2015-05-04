@@ -1,5 +1,5 @@
 %%%-----------------------------------------------------------------------------
-%%% @Copyright (C) 2012-2015, Feng Lee <feng@emqtt.io>
+%%% Copyright (c) 2012-2015 eMQTT.IO, All Rights Reserved.
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -26,9 +26,13 @@
 %%%-----------------------------------------------------------------------------
 -module(emqttd_session).
 
--include_lib("emqtt/include/emqtt.hrl").
--include_lib("emqtt/include/emqtt_packet.hrl").
+-author("Feng Lee <feng@emqtt.io>").
+
 -include("emqttd.hrl").
+
+-include_lib("emqtt/include/emqtt.hrl").
+
+-include_lib("emqtt/include/emqtt_packet.hrl").
 
 %% API Function Exports
 -export([start/1,
@@ -42,7 +46,7 @@
 -export([store/2]).
 
 %% Start gen_server
--export([start_link/3]).
+-export([start_link/2]).
 
 %% gen_server Function Exports
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -67,9 +71,7 @@
 %%%=============================================================================
 
 %%------------------------------------------------------------------------------
-%% @doc
-%% Start Session.
-%%
+%% @doc Start Session
 %% @end
 %%------------------------------------------------------------------------------
 -spec start({boolean(), binary(), pid()}) -> {ok, session()}.
@@ -83,9 +85,7 @@ start({false = _CleanSess, ClientId, ClientPid}) ->
     {ok, SessPid}.
 
 %%------------------------------------------------------------------------------
-%% @doc
-%% Resume Session.
-%%
+%% @doc Resume Session
 %% @end
 %%------------------------------------------------------------------------------
 -spec resume(session(), binary(), pid()) -> session().
@@ -96,9 +96,7 @@ resume(SessPid, ClientId, ClientPid) when is_pid(SessPid) ->
     SessPid.
 
 %%------------------------------------------------------------------------------
-%% @doc
-%% Publish message.
-%%
+%% @doc Publish message
 %% @end
 %%------------------------------------------------------------------------------
 -spec publish(session(), mqtt_clientid(), {mqtt_qos(), mqtt_message()}) -> session().
@@ -118,9 +116,7 @@ publish(SessPid, ClientId, {?QOS_2, Message}) when is_pid(SessPid) ->
     SessPid.
 
 %%------------------------------------------------------------------------------
-%% @doc
-%% PubAck message.
-%%
+%% @doc PubAck message
 %% @end
 %%------------------------------------------------------------------------------
 -spec puback(session(), {mqtt_packet_type(), mqtt_packet_id()}) -> session().
@@ -172,9 +168,7 @@ puback(SessPid, {?PUBCOMP, PacketId}) when is_pid(SessPid) ->
     gen_server:cast(SessPid, {pubcomp, PacketId}), SessPid.
 
 %%------------------------------------------------------------------------------
-%% @doc
-%% Subscribe Topics.
-%%
+%% @doc Subscribe Topics
 %% @end
 %%------------------------------------------------------------------------------
 -spec subscribe(session(), [{binary(), mqtt_qos()}]) -> {ok, session(), [mqtt_qos()]}.
@@ -186,7 +180,8 @@ subscribe(SessState = #session_state{clientid = ClientId, submap = SubMap}, Topi
     end,
     SubMap1 = lists:foldl(fun({Name, Qos}, Acc) -> maps:put(Name, Qos, Acc) end, SubMap, Topics),
     {ok, GrantedQos} = emqttd_pubsub:subscribe(Topics),
-    lager:info("Client ~s subscribe ~p. Granted QoS: ~p", [ClientId, Topics, GrantedQos]),
+    lager:info([{client, ClientId}], "Client ~s subscribe ~p. Granted QoS: ~p",
+                    [ClientId, Topics, GrantedQos]),
     %%TODO: should be gen_event and notification...
     [emqttd_msg_store:redeliver(Name, self()) || {Name, _} <- Topics],
     {ok, SessState#session_state{submap = SubMap1}, GrantedQos};
@@ -196,9 +191,7 @@ subscribe(SessPid, Topics) when is_pid(SessPid) ->
     {ok, SessPid, GrantedQos}.
 
 %%------------------------------------------------------------------------------
-%% @doc
-%% Unsubscribe Topics.
-%%
+%% @doc Unsubscribe Topics
 %% @end
 %%------------------------------------------------------------------------------
 -spec unsubscribe(session(), [binary()]) -> {ok, session()}.
@@ -210,7 +203,7 @@ unsubscribe(SessState = #session_state{clientid = ClientId, submap = SubMap}, To
     end,
     %%unsubscribe from topic tree
     ok = emqttd_pubsub:unsubscribe(Topics),
-    lager:info("Client ~s unsubscribe ~p.", [ClientId, Topics]),
+    lager:info([{client, ClientId}], "Client ~s unsubscribe ~p.", [ClientId, Topics]),
     SubMap1 = lists:foldl(fun(Topic, Acc) -> maps:remove(Topic, Acc) end, SubMap, Topics),
     {ok, SessState#session_state{submap = SubMap1}};
 
@@ -219,9 +212,7 @@ unsubscribe(SessPid, Topics) when is_pid(SessPid) ->
     {ok, SessPid}.
 
 %%------------------------------------------------------------------------------
-%% @doc
-%% Destroy Session.
-%%
+%% @doc Destroy Session
 %% @end
 %%------------------------------------------------------------------------------
 -spec destroy(SessPid :: pid(), ClientId :: binary()) -> ok.
@@ -256,17 +247,18 @@ initial_state(ClientId, ClientPid) ->
 %% @doc Start a session process.
 %% @end
 %%------------------------------------------------------------------------------
-start_link(SessOpts, ClientId, ClientPid) ->
-    gen_server:start_link(?MODULE, [SessOpts, ClientId, ClientPid], []).
+start_link(ClientId, ClientPid) ->
+    gen_server:start_link(?MODULE, [ClientId, ClientPid], []).
 
 %%%=============================================================================
 %%% gen_server callbacks
 %%%=============================================================================
 
-init([SessOpts, ClientId, ClientPid]) ->
+init([ClientId, ClientPid]) ->
     process_flag(trap_exit, true),
-    %%TODO: Is this OK? should monitor...
+    %%TODO: Is this OK? or should monitor...
     true = link(ClientPid),
+    SessOpts = emqttd:env(session),
     State = initial_state(ClientId, ClientPid),
     Expires = proplists:get_value(expires, SessOpts, 1) * 3600,
     MsgQueue = emqttd_queue:new(proplists:get_value(max_queue, SessOpts, 1000), 
@@ -293,7 +285,8 @@ handle_cast({resume, ClientId, ClientPid}, State = #session_state{
                                                       awaiting_ack  = AwaitingAck,
                                                       awaiting_comp = AwaitingComp,
                                                       expire_timer  = ETimer}) ->
-    lager:info("Session ~s resumed by ~p", [ClientId, ClientPid]),
+
+    lager:info([{client, ClientId}], "Session ~s resumed by ~p",[ClientId, ClientPid]),
 
     %% kick old client...
     if
@@ -308,7 +301,7 @@ handle_cast({resume, ClientId, ClientPid}, State = #session_state{
     end,
 
     %% cancel timeout timer
-    emqttd_utils:cancel_timer(ETimer),
+    emqttd_util:cancel_timer(ETimer),
 
     %% redelivery PUBREL
     lists:foreach(fun(PacketId) ->
@@ -417,7 +410,7 @@ next_msg_id(State = #session_state{message_id = MsgId}) ->
 
 start_expire_timer(State = #session_state{expires = Expires,
                                           expire_timer = OldTimer}) ->
-    emqttd_utils:cancel_timer(OldTimer),
+    emqttd_util:cancel_timer(OldTimer),
     Timer = erlang:send_after(Expires * 1000, self(), session_expired),
     State#session_state{expire_timer = Timer}.
 

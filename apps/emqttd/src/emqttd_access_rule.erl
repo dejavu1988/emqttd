@@ -1,5 +1,5 @@
 %%%-----------------------------------------------------------------------------
-%%% @Copyright (C) 2012-2015, Feng Lee <feng@emqtt.io>
+%%% Copyright (c) 2012-2015 eMQTT.IO, All Rights Reserved.
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -26,7 +26,7 @@
 %%%-----------------------------------------------------------------------------
 -module(emqttd_access_rule).
 
--author('feng@emqtt.io').
+-author("Feng Lee <feng@emqtt.io>").
 
 -include("emqttd.hrl").
 
@@ -48,12 +48,10 @@
 
 -export([compile/1, match/3]).
 
-%%%-----------------------------------------------------------------------------
-%% @doc
-%% Compile rule.
-%%
+%%------------------------------------------------------------------------------
+%% @doc Compile access rule
 %% @end
-%%%-----------------------------------------------------------------------------
+%%------------------------------------------------------------------------------
 compile({A, all}) when (A =:= allow) orelse (A =:= deny) ->
     {A, all};
 
@@ -92,12 +90,10 @@ bin(L) when is_list(L) ->
 bin(B) when is_binary(B) ->
     B.
 
-%%%-----------------------------------------------------------------------------
-%% @doc
-%% Match rule.
-%%
+%%------------------------------------------------------------------------------
+%% @doc Match rule
 %% @end
-%%%-----------------------------------------------------------------------------
+%%------------------------------------------------------------------------------
 -spec match(mqtt_client(), topic(), rule()) -> {matched, allow} | {matched, deny} | nomatch.
 match(_Client, _Topic, {AllowDeny, all}) when (AllowDeny =:= allow) orelse (AllowDeny =:= deny) ->
     {matched, AllowDeny};

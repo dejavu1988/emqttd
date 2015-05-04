@@ -1,13 +1,16 @@
-.PHONY: test
+.PHONY: rel deps test plugins
 
-REBAR=./rebar
+APP		 = emqttd
+BASE_DIR = $(shell pwd)
+REBAR    = $(BASE_DIR)/rebar
+DIST	 = $(BASE_DIR)/rel/$(APP)
 
-all: get-deps compile
+all: deps compile
 
-compile: get-deps
+compile: deps
 	@$(REBAR) compile
 
-get-deps:
+deps:
 	@$(REBAR) get-deps
 
 update-deps:
@@ -18,7 +21,6 @@ xref:
 
 clean:
 	@$(REBAR) clean
-	rm -rf rel/emqttd
 
 test:
 	@$(REBAR) skip_deps=true eunit
@@ -26,5 +28,13 @@ test:
 edoc:
 	@$(REBAR) doc
 
-dist:
-	cd rel && ../rebar generate -f
+rel: compile
+	@cd rel && ../rebar generate -f
+
+plugins:
+	@for plugin in ./plugins/* ; do \
+		cp -R $${plugin} $(DIST)/plugins/ && rm -rf $(DIST)/$${plugin}/src/ ; \
+	done
+
+dist: rel plugins
+

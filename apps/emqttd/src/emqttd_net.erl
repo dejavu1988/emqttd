@@ -1,5 +1,5 @@
 %%%-----------------------------------------------------------------------------
-%%% @Copyright (C) 2012-2015, Feng Lee <feng@emqtt.io>
+%%% Copyright (c) 2012-2015 eMQTT.IO, All Rights Reserved.
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -26,13 +26,13 @@
 %%%-----------------------------------------------------------------------------
 -module(emqttd_net).
 
--author('feng@emqtt.io').
+-author("Feng Lee <feng@emqtt.io>").
+
+-include_lib("kernel/include/inet.hrl").
 
 -export([tcp_name/3, tcp_host/1, getopts/2, setopts/2, getaddr/2, port_to_listeners/1]).
 
 -export([peername/1, sockname/1, format/2, format/1, connection_string/2]).
-
--include_lib("kernel/include/inet.hrl").
 
 -define(FIRST_TEST_BIND_PORT, 10000).
 

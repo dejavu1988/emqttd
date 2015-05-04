@@ -1,5 +1,5 @@
 %%%-----------------------------------------------------------------------------
-%%% @Copyright (C) 2012-2015, Feng Lee <feng@emqtt.io>
+%%% Copyright (c) 2012-2015 eMQTT.IO, All Rights Reserved.
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -26,7 +26,7 @@
 %%%-----------------------------------------------------------------------------
 -module(emqttd_pubsub).
 
--author('feng@emqtt.io').
+-author("Feng Lee <feng@emqtt.io>").
 
 -include("emqttd.hrl").
 
@@ -88,7 +88,8 @@ mnesia(copy) ->
 %%%=============================================================================
 
 %%------------------------------------------------------------------------------
-%% @doc Start one pubsub.
+%% @doc Start one pubsub server
+%% @end
 %%------------------------------------------------------------------------------
 -spec start_link(Id, Opts) -> {ok, pid()} | ignore | {error, any()} when
     Id   :: pos_integer(),
@@ -97,30 +98,36 @@ start_link(Id, Opts) ->
     gen_server:start_link(?MODULE, [Id, Opts], []).
 
 %%------------------------------------------------------------------------------
-%% @doc Create topic. Notice That this transaction is not protected by pubsub pool.
+%% @doc Create topic. Notice That this transaction is not protected by pubsub pool
+%% @end
 %%------------------------------------------------------------------------------
 -spec create(Topic :: binary()) -> ok | {error, Error :: any()}.
 create(Topic) when is_binary(Topic) ->
     TopicR = #mqtt_topic{topic = Topic, node = node()},
     case mnesia:transaction(fun add_topic/1, [TopicR]) of
-        {atomic, ok} -> setstats(topics), ok;
-        {aborted, Error} -> {error, Error}
-    end.  
+        {atomic, ok} ->
+            setstats(topics), ok;
+        {aborted, Error} ->
+            {error, Error}
+    end.
 
 %%------------------------------------------------------------------------------
-%% @doc Subscribe topic.
+%% @doc Subscribe topic
+%% @end
 %%------------------------------------------------------------------------------
 -spec subscribe({Topic, Qos} | list({Topic, Qos})) -> {ok, Qos | list(Qos)} | {error, any()} when
     Topic   :: binary(),
     Qos     :: mqtt_qos().
-
 subscribe({Topic, Qos}) when is_binary(Topic) andalso ?IS_QOS(Qos) ->
     call({subscribe, self(), Topic, Qos});
 
 subscribe(Topics = [{_Topic, _Qos} | _]) ->
     call({subscribe, self(), Topics}).
 
+%%------------------------------------------------------------------------------
 %% @doc Unsubscribe Topic or Topics
+%% @end
+%%------------------------------------------------------------------------------
 -spec unsubscribe(binary() | list(binary())) -> ok.
 unsubscribe(Topic) when is_binary(Topic) ->
     cast({unsubscribe, self(), Topic});
@@ -130,7 +137,6 @@ unsubscribe(Topics = [Topic|_]) when is_binary(Topic) ->
 
 call(Req) ->
     Pid = gproc_pool:pick_worker(?POOL, self()),
-    lager:info("~p call ~p", [self(), Pid]),
     gen_server:call(Pid, Req, infinity).
 
 cast(Msg) ->
@@ -138,11 +144,12 @@ cast(Msg) ->
     gen_server:cast(Pid, Msg).
 
 %%------------------------------------------------------------------------------
-%% @doc Publish to cluster nodes.
+%% @doc Publish to cluster nodes
+%% @end
 %%------------------------------------------------------------------------------
 -spec publish(From :: mqtt_clientid() | atom(), Msg :: mqtt_message()) -> ok.
 publish(From, Msg=#mqtt_message{topic=Topic}) ->
-    lager:info("~s PUBLISH to ~s", [From, Topic]),
+    lager:info([{client, From}, {topic, Topic}], "~s PUBLISH to ~s", [From, Topic]),
     %% Retain message first. Don't create retained topic.
     case emqttd_msg_store:retain(Msg) of
         ok ->
@@ -160,7 +167,10 @@ publish(_From, Topic, Msg) when is_binary(Topic) ->
         end
 	end, match(Topic)).
 
+%%------------------------------------------------------------------------------
 %% @doc Dispatch message locally. should only be called by publish.
+%% @end
+%%------------------------------------------------------------------------------
 -spec dispatch(Topic :: binary(), Msg :: mqtt_message()) -> non_neg_integer().
 dispatch(Topic, Msg = #mqtt_message{qos = Qos}) when is_binary(Topic) ->
     Subscribers = mnesia:dirty_read(subscriber, Topic),
@@ -345,10 +355,10 @@ setstats(all) ->
     setstats(topics),
     setstats(subscribers);
 setstats(topics) ->
-    emqttd_broker:setstat('topics/count',
+    emqttd_stats:setstat('topics/count',
                           mnesia:table_info(topic, size));
 setstats(subscribers) ->
-    emqttd_broker:setstats('subscribers/count',
+    emqttd_stats:setstats('subscribers/count',
                            'subscribers/max',
                            mnesia:table_info(subscriber, size)).
 

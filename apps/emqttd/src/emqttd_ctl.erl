@@ -1,5 +1,5 @@
 %%%-----------------------------------------------------------------------------
-%%% @Copyright (C) 2012-2015, Feng Lee <feng@emqtt.io>
+%%% Copyright (c) 2012-2015 eMQTT.IO, All Rights Reserved.
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -26,7 +26,7 @@
 %%%-----------------------------------------------------------------------------
 -module(emqttd_ctl).
 
--author('feng@emqtt.io').
+-author("Feng Lee <feng@emqtt.io>").
 
 -include("emqttd.hrl").
 
@@ -45,9 +45,14 @@
          listeners/1,
          bridges/1,
          plugins/1,
+         trace/1,
          useradd/1,
          userdel/1]).
 
+%%------------------------------------------------------------------------------
+%% @doc Query node status
+%% @end
+%%------------------------------------------------------------------------------
 status([]) ->
     {InternalStatus, _ProvidedStatus} = init:get_status(),
     ?PRINT("Node ~p is ~p~n", [node(), InternalStatus]),
@@ -58,6 +63,10 @@ status([]) ->
 		?PRINT_MSG("emqttd is running~n")
     end.
 
+%%------------------------------------------------------------------------------
+%% @doc Cluster with other node
+%% @end
+%%------------------------------------------------------------------------------
 cluster([]) ->
     Nodes = [node()|nodes()],
     ?PRINT("cluster nodes: ~p~n", [Nodes]);
@@ -76,9 +85,17 @@ cluster([SNode]) ->
         ?PRINT("failed to connect to ~p~n", [Node])
 	end.
 
+%%------------------------------------------------------------------------------
+%% @doc Add usern
+%% @end
+%%------------------------------------------------------------------------------
 useradd([Username, Password]) ->
 	?PRINT("~p~n", [emqttd_auth_username:add_user(bin(Username), bin(Password))]).
 
+%%------------------------------------------------------------------------------
+%% @doc Delete user
+%% @end
+%%------------------------------------------------------------------------------
 userdel([Username]) ->
 	?PRINT("~p~n", [emqttd_auth_username:remove_user(bin(Username))]).
 
@@ -107,7 +124,7 @@ broker([]) ->
     [?PRINT("~s: ~s~n", [Fun, emqttd_broker:Fun()]) || Fun <- Funs].
 
 stats([]) ->
-    [?PRINT("~s: ~p~n", [Stat, Val]) || {Stat, Val} <- emqttd_broker:getstats()].
+    [?PRINT("~s: ~p~n", [Stat, Val]) || {Stat, Val} <- emqttd_stats:getstats()].
     
 metrics([]) ->
     [?PRINT("~s: ~p~n", [Metric, Val]) || {Metric, Val} <- emqttd_metrics:all()].
@@ -138,22 +155,48 @@ bridges(["stop", SNode, Topic]) ->
     end.
 
 plugins(["list"]) ->
-    Plugins = emqttd_plugin_manager:list(),
-    lists:foreach(fun({Name, Attrs}) ->
-                ?PRINT("plugin ~s~n", [Name]),
-                [?PRINT("  ~s:~p~n", [Attr, Val]) || {Attr, Val} <- Attrs]
-        end, Plugins);
+    Plugins = emqttd:loaded_plugins(),
+    lists:foreach(fun(Plugin) -> ?PRINT("~p~n", [Plugin]) end, Plugins);
 
 plugins(["load", Name]) ->
-    case emqttd_plugin_manager:load(list_to_atom(Name)) of
+    case emqttd:load_plugin(list_to_atom(Name)) of
         ok -> ?PRINT("plugin ~s is loaded successfully.~n", [Name]);
         {error, Reason} -> ?PRINT("error: ~s~n", [Reason])
     end;
 
 plugins(["unload", Name]) ->
-    case emqttd_plugin_manager:load(list_to_atom(Name)) of
+    case emqttd:unload_plugin(list_to_atom(Name)) of
         ok -> ?PRINT("plugin ~s is unloaded successfully.~n", [Name]);
         {error, Reason} -> ?PRINT("error: ~s~n", [Reason])
+    end.
+
+trace(["list"]) ->
+    lists:foreach(fun({{Who, Name}, LogFile}) -> 
+            ?PRINT("trace ~s ~s -> ~s~n", [Who, Name, LogFile])
+        end, emqttd_trace:all_traces());
+
+trace(["client", ClientId, "off"]) ->
+    stop_trace(client, ClientId);
+trace(["client", ClientId, LogFile]) ->
+    start_trace(client, ClientId, LogFile);
+trace(["topic", Topic, "off"]) ->
+    stop_trace(topic, Topic);
+trace(["topic", Topic, LogFile]) ->
+    start_trace(topic, Topic, LogFile).
+
+start_trace(Who, Name, LogFile) ->
+    case emqttd_trace:start_trace({Who, bin(Name)}, LogFile) of
+        ok -> 
+            ?PRINT("trace ~s ~s successfully.~n", [Who, Name]);
+        {error, Error} ->
+            ?PRINT("trace ~s ~s error: ~p~n", [Who, Name, Error])
+    end.
+stop_trace(Who, Name) ->
+    case emqttd_trace:stop_trace({Who, bin(Name)}) of
+        ok -> 
+            ?PRINT("stop to trace ~s ~s successfully.~n", [Who, Name]);
+        {error, Error} ->
+            ?PRINT("stop to trace ~s ~s error: ~p.~n", [Who, Name, Error])
     end.
 
 node_name(SNode) ->

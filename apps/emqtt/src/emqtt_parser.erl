@@ -1,5 +1,5 @@
 %%%-----------------------------------------------------------------------------
-%%% @Copyright (C) 2012-2015, Feng Lee <feng@emqtt.io>
+%%% Copyright (c) 2012-2015 eMQTT.IO, All Rights Reserved.
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -20,13 +20,13 @@
 %%% SOFTWARE.
 %%%-----------------------------------------------------------------------------
 %%% @doc
-%%% emqtt packet parser.
+%%% MQTT Packet Parser.
 %%%
 %%% @end
 %%%-----------------------------------------------------------------------------
 -module(emqtt_parser).
 
--author("feng@emqtt.io").
+-author("Feng Lee <feng@emqtt.io>").
 
 -include("emqtt.hrl").
 
@@ -39,24 +39,20 @@
 
 -type option() :: {atom(),  any()}.
 
-%%%-----------------------------------------------------------------------------
-%% @doc
-%% Initialize a parser.
-%%
+%%------------------------------------------------------------------------------
+%% @doc Initialize a parser
 %% @end
-%%%-----------------------------------------------------------------------------
+%%------------------------------------------------------------------------------
 -spec init(Opts :: [option()]) -> {none, #mqtt_packet_limit{}}.
 init(Opts) -> {none, limit(Opts)}.
 
 limit(Opts) ->
     #mqtt_packet_limit{max_packet_size = proplists:get_value(max_packet_size, Opts, ?MAX_LEN)}.
 
-%%%-----------------------------------------------------------------------------
-%% @doc
-%% Parse MQTT Packet.
-%%
+%%------------------------------------------------------------------------------
+%% @doc Parse MQTT Packet
 %% @end
-%%%-----------------------------------------------------------------------------
+%%------------------------------------------------------------------------------
 -spec parse(binary(), {none, [option()]} | fun()) -> {ok, mqtt_packet()} | {error, any()} | {more, fun()}.
 parse(<<>>, {none, Limit}) ->
     {more, fun(Bin) -> parse(Bin, {none, Limit}) end};

@@ -1,5 +1,5 @@
 %%%-----------------------------------------------------------------------------
-%%% @Copyright (C) 2012-2015, Feng Lee <feng@emqtt.io>
+%%% Copyright (c) 2012-2015 eMQTT.IO, All Rights Reserved.
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -26,13 +26,15 @@
 %%%-----------------------------------------------------------------------------
 -module(emqttd_protocol).
 
+-author("Feng Lee <feng@emqtt.io>").
+
 -include_lib("emqtt/include/emqtt.hrl").
 -include_lib("emqtt/include/emqtt_packet.hrl").
 
 -include("emqttd.hrl").
 
 %% API
--export([init/2, clientid/1]).
+-export([init/3, clientid/1]).
 
 -export([received/2, send/2, redeliver/2, shutdown/2]).
 
@@ -40,9 +42,8 @@
 
 %% Protocol State
 -record(proto_state, {
-        transport,
-        socket,
         peername,
+        sendfun,
         connected = false, %received CONNECT action?
         proto_ver,
         proto_name,
@@ -57,12 +58,12 @@
 
 -type proto_state() :: #proto_state{}.
 
-init({Transport, Socket, Peername}, Opts) ->
+init(Peername, SendFun, Opts) ->
+    MaxLen = proplists:get_value(max_clientid_len, Opts, ?MAX_CLIENTID_LEN),
 	#proto_state{
-        transport        = Transport,
-		socket	         = Socket,
         peername         = Peername,
-        max_clientid_len = proplists:get_value(max_clientid_len, Opts, ?MAX_CLIENTID_LEN)}. 
+        sendfun          = SendFun,
+        max_clientid_len = MaxLen}. 
 
 clientid(#proto_state{clientid = ClientId}) -> ClientId.
 
@@ -113,7 +114,7 @@ handle(Packet = ?CONNECT_PACKET(Var), State = #proto_state{peername = Peername =
                          keep_alive = KeepAlive,
                          clientid  = ClientId} = Var,
 
-    trace(recv, Packet, State),
+    trace(recv, Packet, State#proto_state{clientid = ClientId}), %%TODO: fix later...
 
     State1 = State#proto_state{proto_ver  = ProtoVer,
                                username   = Username,
@@ -146,7 +147,7 @@ handle(Packet = ?CONNECT_PACKET(Var), State = #proto_state{peername = Peername =
 
 handle(Packet = ?PUBLISH_PACKET(?QOS_0, Topic, _PacketId, _Payload),
        State = #proto_state{clientid = ClientId, session = Session}) ->
-    case emqttd_access_control:check_acl(client(State), publish, Topic) of
+    case check_acl(publish, Topic, State) of
         allow -> 
             emqttd_session:publish(Session, ClientId, {?QOS_0, emqtt_message:from_packet(Packet)});
         deny -> 
@@ -156,7 +157,7 @@ handle(Packet = ?PUBLISH_PACKET(?QOS_0, Topic, _PacketId, _Payload),
 
 handle(Packet = ?PUBLISH_PACKET(?QOS_1, Topic, PacketId, _Payload),
          State = #proto_state{clientid = ClientId, session = Session}) ->
-    case emqttd_access_control:check_acl(client(State), publish, Topic) of
+    case check_acl(publish, Topic, State) of
         allow -> 
             emqttd_session:publish(Session, ClientId, {?QOS_1, emqtt_message:from_packet(Packet)}),
             send(?PUBACK_PACKET(?PUBACK, PacketId), State);
@@ -167,7 +168,7 @@ handle(Packet = ?PUBLISH_PACKET(?QOS_1, Topic, PacketId, _Payload),
 
 handle(Packet = ?PUBLISH_PACKET(?QOS_2, Topic, PacketId, _Payload),
          State = #proto_state{clientid = ClientId, session = Session}) ->
-    case emqttd_access_control:check_acl(client(State), publish, Topic) of
+    case check_acl(publish, Topic, State) of
         allow -> 
             NewSession = emqttd_session:publish(Session, ClientId, {?QOS_2, emqtt_message:from_packet(Packet)}),
             send(?PUBACK_PACKET(?PUBREC, PacketId), State#proto_state{session = NewSession});
@@ -190,17 +191,26 @@ handle(?PUBACK_PACKET(Type, PacketId), State = #proto_state{session = Session})
     end,
 	{ok, NewState};
 
+%% protect from empty topic list
+handle(?SUBSCRIBE_PACKET(PacketId, []), State) ->
+    send(?SUBACK_PACKET(PacketId, []), State);
+
 handle(?SUBSCRIBE_PACKET(PacketId, TopicTable), State = #proto_state{clientid = ClientId, session = Session}) ->
-    AllowDenies = [emqttd_access_control:check_acl(client(State), subscribe, Topic) || {Topic, _Qos} <- TopicTable],
+    AllowDenies = [check_acl(subscribe, Topic, State) || {Topic, _Qos} <- TopicTable],
     case lists:member(deny, AllowDenies) of
         true ->
-            %%TODO: return 128 QoS when deny...
+            %%TODO: return 128 QoS when deny... no need to SUBACK?
             lager:error("SUBSCRIBE from '~s' Denied: ~p", [ClientId, TopicTable]),
             {ok, State};
         false ->
+            %%TODO: GrantedQos should be renamed.
             {ok, NewSession, GrantedQos} = emqttd_session:subscribe(Session, TopicTable),
             send(?SUBACK_PACKET(PacketId, GrantedQos), State#proto_state{session = NewSession})
     end;
+
+%% protect from empty topic list
+handle(?UNSUBSCRIBE_PACKET(PacketId, []), State) ->
+    send(?UNSUBACK_PACKET(PacketId), State);
 
 handle(?UNSUBSCRIBE_PACKET(PacketId, Topics), State = #proto_state{session = Session}) ->
     {ok, NewSession} = emqttd_session:unsubscribe(Session, Topics),
@@ -229,20 +239,22 @@ send({_From, Message = #mqtt_message{qos = Qos}}, State = #proto_state{session =
     {Message1, NewSession} = emqttd_session:store(Session, Message),
 	send(emqtt_message:to_packet(Message1), State#proto_state{session = NewSession});
 
-send(Packet, State = #proto_state{transport = Transport, socket = Sock, peername = Peername}) when is_record(Packet, mqtt_packet) ->
+send(Packet, State = #proto_state{sendfun = SendFun, peername = Peername}) when is_record(Packet, mqtt_packet) ->
     trace(send, Packet, State),
     sent_stats(Packet),
     Data = emqtt_serialiser:serialise(Packet),
     lager:debug("SENT to ~s: ~p", [emqttd_net:format(Peername), Data]),
     emqttd_metrics:inc('bytes/sent', size(Data)),
-    Transport:send(Sock, Data),
+    SendFun(Data),
     {ok, State}.
 
-trace(recv, Packet, #proto_state{peername  = Peername, clientid = ClientId}) ->
-	lager:info("RECV from ~s@~s: ~s", [ClientId, emqttd_net:format(Peername), emqtt_packet:format(Packet)]);
+trace(recv, Packet, #proto_state{peername = Peername, clientid = ClientId}) ->
+    lager:info([{client, ClientId}], "RECV from ~s@~s: ~s",
+                   [ClientId, emqttd_net:format(Peername), emqtt_packet:format(Packet)]);
 
 trace(send, Packet, #proto_state{peername  = Peername, clientid = ClientId}) ->
-	lager:info("SEND to ~s@~s: ~s", [ClientId, emqttd_net:format(Peername), emqtt_packet:format(Packet)]).
+	lager:info([{client, ClientId}], "SEND to ~s@~s: ~s",
+                   [ClientId, emqttd_net:format(Peername), emqtt_packet:format(Packet)]).
 
 %% @doc redeliver PUBREL PacketId
 redeliver({?PUBREL, PacketId}, State) ->
@@ -251,7 +263,8 @@ redeliver({?PUBREL, PacketId}, State) ->
 shutdown(Error, #proto_state{peername = Peername, clientid = ClientId, will_msg = WillMsg}) ->
     send_willmsg(ClientId, WillMsg),
     try_unregister(ClientId, self()),
-	lager:debug("Protocol ~s@~s Shutdown: ~p", [ClientId, emqttd_net:format(Peername), Error]),
+	lager:info([{client, ClientId}], "Protocol ~s@~s Shutdown: ~p",
+                   [ClientId, emqttd_net:format(Peername), Error]),
     ok.
 
 willmsg(Packet) when is_record(Packet, mqtt_packet_connect) ->
@@ -342,6 +355,20 @@ validate_qos(_) -> false.
 
 try_unregister(undefined, _) -> ok;
 try_unregister(ClientId, _) -> emqttd_cm:unregister(ClientId).
+
+%% publish ACL is cached in process dictionary.
+check_acl(publish, Topic, State) ->
+    case get({acl, publish, Topic}) of
+        undefined ->
+            AllowDeny = emqttd_access_control:check_acl(client(State), publish, Topic),
+            put({acl, publish, Topic}, AllowDeny),
+            AllowDeny;
+        AllowDeny ->
+            AllowDeny
+    end;
+
+check_acl(subscribe, Topic, State) ->
+    emqttd_access_control:check_acl(client(State), subscribe, Topic).
 
 sent_stats(?PACKET(Type)) ->
     emqttd_metrics:inc('packets/sent'), 

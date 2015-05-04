@@ -1,5 +1,5 @@
 %%%-----------------------------------------------------------------------------
-%%% @Copyright (C) 2012-2015, Feng Lee <feng@emqtt.io>
+%%% Copyright (c) 2012-2015 eMQTT.IO, All Rights Reserved.
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -20,13 +20,13 @@
 %%% SOFTWARE.
 %%%-----------------------------------------------------------------------------
 %%% @doc
-%%% MQTT Message.
+%%% MQTT Message Functions
 %%%
 %%% @end
 %%%-----------------------------------------------------------------------------
 -module(emqtt_message).
 
--author('feng@emqtt.io').
+-author("Feng Lee <feng@emqtt.io>").
 
 -include("emqtt.hrl").
 
@@ -39,9 +39,7 @@
 -export([format/1]).
 
 %%------------------------------------------------------------------------------
-%% @doc
-%% Message from Packet.
-%%
+%% @doc Message from Packet
 %% @end
 %%------------------------------------------------------------------------------
 -spec from_packet(mqtt_packet()) -> mqtt_message().
@@ -73,9 +71,7 @@ from_packet(#mqtt_packet_connect{will_retain = Retain,
                   payload = Msg}.
 
 %%------------------------------------------------------------------------------
-%% @doc
-%% Message to packet
-%%
+%% @doc Message to packet
 %% @end
 %%------------------------------------------------------------------------------
 -spec to_packet(mqtt_message()) -> mqtt_packet().
@@ -100,9 +96,7 @@ to_packet(#mqtt_message{msgid   = MsgId,
                  payload = Payload}.
 
 %%------------------------------------------------------------------------------
-%% @doc
-%% set dup, retain flag
-%%
+%% @doc set dup, retain flag
 %% @end
 %%------------------------------------------------------------------------------
 -spec set_flag(mqtt_message()) -> mqtt_message().
@@ -118,9 +112,7 @@ set_flag(Flag, Msg) when Flag =:= dup orelse Flag =:= retain -> Msg.
 
 
 %%------------------------------------------------------------------------------
-%% @doc
-%% Unset dup, retain flag
-%%
+%% @doc Unset dup, retain flag
 %% @end
 %%------------------------------------------------------------------------------
 -spec unset_flag(mqtt_message()) -> mqtt_message().
@@ -135,9 +127,7 @@ unset_flag(retain, Msg = #mqtt_message{retain = true}) ->
 unset_flag(Flag, Msg) when Flag =:= dup orelse Flag =:= retain -> Msg.
 
 %%------------------------------------------------------------------------------
-%% @doc
-%% Format MQTT Message.
-%%
+%% @doc Format MQTT Message
 %% @end
 %%------------------------------------------------------------------------------
 format(#mqtt_message{msgid=MsgId, qos=Qos, retain=Retain, dup=Dup, topic=Topic}) ->

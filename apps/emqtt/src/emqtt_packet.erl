@@ -1,5 +1,5 @@
 %%%-----------------------------------------------------------------------------
-%%% @Copyright (C) 2012-2015, Feng Lee <feng@emqtt.io>
+%%% Copyright (c) 2012-2015 eMQTT.IO, All Rights Reserved.
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -20,13 +20,13 @@
 %%% SOFTWARE.
 %%%-----------------------------------------------------------------------------
 %%% @doc
-%%% MQTT packet utility functions.
+%%% MQTT Packet Functions
 %%%
 %%% @end
 %%%-----------------------------------------------------------------------------
 -module(emqtt_packet).
 
--author("feng@emqtt.io").
+-author("Feng Lee <feng@emqtt.io>").
 
 -include("emqtt.hrl").
 
@@ -38,21 +38,15 @@
 -export([format/1]).
 
 %%------------------------------------------------------------------------------
-%% @doc
-%% Protocol name of version.
-%%
+%% @doc Protocol name of version
 %% @end
 %%------------------------------------------------------------------------------
--spec protocol_name(Ver) -> Name when
-      Ver   :: mqtt_vsn(),
-      Name  :: binary().
+-spec protocol_name(mqtt_vsn()) -> binary(). 
 protocol_name(Ver) when Ver =:= ?MQTT_PROTO_V31; Ver =:= ?MQTT_PROTO_V311->
     proplists:get_value(Ver, ?PROTOCOL_NAMES).
 
 %%------------------------------------------------------------------------------
-%% @doc
-%% Name of MQTT packet type.
-%%
+%% @doc Name of MQTT packet type
 %% @end
 %%------------------------------------------------------------------------------
 -spec type_name(mqtt_packet_type()) -> atom().
@@ -60,9 +54,7 @@ type_name(Type) when Type > ?RESERVED andalso Type =< ?DISCONNECT ->
     lists:nth(Type, ?TYPE_NAMES).
 
 %%------------------------------------------------------------------------------
-%% @doc
-%% Connack Name.
-%%
+%% @doc Connack Name
 %% @end
 %%------------------------------------------------------------------------------
 -spec connack_name(mqtt_connack()) -> atom().
@@ -74,9 +66,7 @@ connack_name(?CONNACK_CREDENTIALS)  -> 'CONNACK_CREDENTIALS';
 connack_name(?CONNACK_AUTH)         -> 'CONNACK_AUTH'.
 
 %%------------------------------------------------------------------------------
-%% @doc
-%% Format packet.
-%%
+%% @doc Format packet
 %% @end
 %%------------------------------------------------------------------------------
 -spec format(mqtt_packet()) -> iolist().

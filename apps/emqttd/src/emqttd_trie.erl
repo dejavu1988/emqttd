@@ -1,5 +1,5 @@
 %%%-----------------------------------------------------------------------------
-%%% @Copyright (C) 2012-2015, Feng Lee <feng@emqtt.io>
+%%% Copyright (c) 2012-2015 eMQTT.IO, All Rights Reserved.
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -28,7 +28,7 @@
 %%%-----------------------------------------------------------------------------
 -module(emqttd_trie).
 
--author('feng@emqtt.io').
+-author("Feng Lee <feng@emqtt.io>").
 
 %% Mnesia Callbacks
 -export([mnesia/1]).
@@ -62,9 +62,7 @@
 %%%=============================================================================
 
 %%------------------------------------------------------------------------------
-%% @doc
-%% Create trie tables.
-%%
+%% @doc Create trie tables
 %% @end
 %%------------------------------------------------------------------------------
 -spec mnesia(boot | copy) -> ok.
@@ -80,9 +78,7 @@ mnesia(boot) ->
                 {attributes, record_info(fields, trie_node)}]);
 
 %%------------------------------------------------------------------------------
-%% @doc
-%% Replicate trie tables.
-%%
+%% @doc Replicate trie tables
 %% @end
 %%------------------------------------------------------------------------------
 mnesia(copy) ->
@@ -94,9 +90,7 @@ mnesia(copy) ->
 %%%=============================================================================
 
 %%------------------------------------------------------------------------------
-%% @doc
-%% Insert topic to trie tree.
-%%
+%% @doc Insert topic to trie tree
 %% @end
 %%------------------------------------------------------------------------------
 -spec insert(Topic :: binary()) -> ok.
@@ -114,9 +108,7 @@ insert(Topic) when is_binary(Topic) ->
 	end.
 
 %%------------------------------------------------------------------------------
-%% @doc
-%% Find trie nodes that match topic.
-%%
+%% @doc Find trie nodes that match topic
 %% @end
 %%------------------------------------------------------------------------------
 -spec find(Topic :: binary()) -> list(MatchedTopic :: binary()).
@@ -125,9 +117,7 @@ find(Topic) when is_binary(Topic) ->
     [Name || #trie_node{topic=Name} <- TrieNodes, Name=/= undefined].
 
 %%------------------------------------------------------------------------------
-%% @doc
-%% Delete topic from trie tree.
-%%
+%% @doc Delete topic from trie tree
 %% @end
 %%------------------------------------------------------------------------------
 -spec delete(Topic :: binary()) -> ok.

@@ -1,5 +1,5 @@
 %%%-----------------------------------------------------------------------------
-%%% @Copyright (C) 2012-2015, Feng Lee <feng@emqtt.io>
+%%% Copyright (c) 2012-2015 eMQTT.IO, All Rights Reserved.
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -20,28 +20,26 @@
 %%% SOFTWARE.
 %%%-----------------------------------------------------------------------------
 %%% @doc
-%%% emqttd client.
+%%% MQTT Client
 %%%
 %%% @end
 %%%-----------------------------------------------------------------------------
 -module(emqttd_client).
 
--author('feng@emqtt.io').
-
--behaviour(gen_server).
-
--export([start_link/2, info/1]).
-
--export([init/1,
-        handle_call/3,
-        handle_cast/2,
-        handle_info/2,
-        code_change/3,
-        terminate/2]).
+-author("Feng Lee <feng@emqtt.io>").
 
 -include_lib("emqtt/include/emqtt.hrl").
 
 -include_lib("emqtt/include/emqtt_packet.hrl").
+
+%% API Function Exports
+-export([start_link/2, info/1]).
+
+-behaviour(gen_server).
+
+%% gen_server Function Exports
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+         code_change/3, terminate/2]).
 
 %%Client State...
 -record(state, {transport,
@@ -69,8 +67,9 @@ init([SockArgs = {Transport, Sock, _SockFun}, PacketOpts]) ->
     {ok, Peername} = emqttd_net:peername(Sock),
     {ok, ConnStr} = emqttd_net:connection_string(Sock, inbound),
     lager:info("Connect from ~s", [ConnStr]),
+    SendFun = fun(Data) -> Transport:send(NewSock, Data) end,
     ParserState = emqtt_parser:init(PacketOpts),
-    ProtoState = emqttd_protocol:init({Transport, NewSock, Peername}, PacketOpts),
+    ProtoState = emqttd_protocol:init(Peername, SendFun, PacketOpts),
     State = control_throttle(#state{transport    = Transport,
                                     socket       = NewSock,
                                     peername     = Peername,
@@ -167,8 +166,7 @@ terminate(Reason, #state{peername = Peername, keepalive = KeepAlive, proto_state
             emqttd_protocol:shutdown(Error, ProtoState);
         {_, _} -> 
             ok
-    end,
-    ok.
+    end.
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
@@ -203,7 +201,7 @@ process_received_bytes(Bytes, State = #state{packet_opts = PacketOpts,
             stop(Reason, State#state{proto_state = ProtoState1})
         end;
     {error, Error} ->
-        lager:error("MQTT detected framing error ~p for connection ~p~n", [ConnStr, Error]),
+        lager:error("MQTT detected framing error ~p for connection ~p", [Error, ConnStr]),
         stop({shutdown, Error}, State)
     end.
 

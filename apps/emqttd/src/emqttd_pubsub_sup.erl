@@ -1,5 +1,5 @@
 %%%-----------------------------------------------------------------------------
-%%% @Copyright (C) 2012-2015, Feng Lee <feng@emqtt.io>
+%%% Copyright (c) 2012-2015 eMQTT.IO, All Rights Reserved.
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -26,22 +26,23 @@
 %%%-----------------------------------------------------------------------------
 -module(emqttd_pubsub_sup).
 
--author('feng@emqtt.io').
+-author("Feng Lee <feng@emqtt.io>").
 
 -include("emqttd.hrl").
 
 -behaviour(supervisor).
 
 %% API
--export([start_link/1]).
+-export([start_link/0]).
 
 %% Supervisor callbacks
 -export([init/1]).
 
-start_link(Opts) ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, [Opts]).
+start_link() ->
+    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
-init([Opts]) ->
+init([]) ->
+    Opts = emqttd_broker:env(pubsub),
     Schedulers = erlang:system_info(schedulers),
     PoolSize = proplists:get_value(pool_size, Opts, Schedulers),
     gproc_pool:new(pubsub, hash, [{size, PoolSize}]),

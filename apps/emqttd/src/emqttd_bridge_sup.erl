@@ -1,5 +1,5 @@
 %%%-----------------------------------------------------------------------------
-%%% @Copyright (C) 2012-2015, Feng Lee <feng@emqtt.io>
+%%% Copyright (c) 2012-2015 eMQTT.IO, All Rights Reserved.
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -26,7 +26,7 @@
 %%%-----------------------------------------------------------------------------
 -module(emqttd_bridge_sup).
 
--author('feng@emqtt.io').
+-author("Feng Lee <feng@emqtt.io>").
 
 -behavior(supervisor).
 
@@ -42,23 +42,20 @@
 %%%=============================================================================
 
 %%------------------------------------------------------------------------------
-%% @doc
-%% Start bridge supervisor.
-%%
+%% @doc Start bridge supervisor
 %% @end
 %%------------------------------------------------------------------------------
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
+%%TODO: bridges...
 -spec bridges() -> [{tuple(), pid()}].
 bridges() ->
     [{{Node, SubTopic}, Pid} || {{bridge, Node, SubTopic}, Pid, worker, _} 
                                 <- supervisor:which_children(?MODULE)].
 
 %%------------------------------------------------------------------------------
-%% @doc
-%% Start a bridge.
-%%
+%% @doc Start a bridge
 %% @end
 %%------------------------------------------------------------------------------
 -spec start_bridge(atom(), binary()) -> {ok, pid()} | {error, any()}.
@@ -67,14 +64,11 @@ start_bridge(Node, SubTopic) when is_atom(Node) and is_binary(SubTopic) ->
 
 -spec start_bridge(atom(), binary(), [emqttd_bridge:option()]) -> {ok, pid()} | {error, any()}.
 start_bridge(Node, SubTopic, Options) when is_atom(Node) and is_binary(SubTopic) ->
-    {ok, Env} = application:get_env(emqttd, bridge),
-    Options1 = emqttd_opts:merge(Env, Options),
+    Options1 = emqttd_opts:merge(emqttd_broker:env(bridge), Options),
     supervisor:start_child(?MODULE, bridge_spec(Node, SubTopic, Options1)).
 
 %%------------------------------------------------------------------------------
-%% @doc
-%% Stop a bridge.
-%%
+%% @doc Stop a bridge
 %% @end
 %%------------------------------------------------------------------------------
 -spec stop_bridge(atom(), binary()) -> {ok, pid()} | ok.

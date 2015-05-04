@@ -1,5 +1,5 @@
 %%%-----------------------------------------------------------------------------
-%%% @Copyright (C) 2012-2015, Feng Lee <feng@emqtt.io>
+%%% Copyright (c) 2012-2015 eMQTT.IO, All Rights Reserved.
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -86,7 +86,7 @@ init_tables() ->
 %% @end
 %%------------------------------------------------------------------------------
 create_tables() ->
-    emqttd_utils:apply_module_attributes(boot_mnesia).
+    emqttd_util:apply_module_attributes(boot_mnesia).
 
 create_table(Table, Attrs) ->
     case mnesia:create_table(Table, Attrs) of
@@ -103,7 +103,7 @@ create_table(Table, Attrs) ->
 %% @end
 %%------------------------------------------------------------------------------
 copy_tables() ->
-    emqttd_utils:apply_module_attributes(copy_mnesia).
+    emqttd_util:apply_module_attributes(copy_mnesia).
 
 copy_table(Table) ->
     case mnesia:add_table_copy(Table, node(), ram_copies) of

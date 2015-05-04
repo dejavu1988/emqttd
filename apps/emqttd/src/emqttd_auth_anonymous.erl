@@ -1,5 +1,5 @@
 %%%-----------------------------------------------------------------------------
-%%% @Copyright (C) 2012-2015, Feng Lee <feng@emqtt.io>
+%%% Copyright (c) 2012-2015 eMQTT.IO, All Rights Reserved.
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -20,13 +20,13 @@
 %%% SOFTWARE.
 %%%-----------------------------------------------------------------------------
 %%% @doc
-%%% emqttd anonymous authentication.
+%%% Anonymous authentication module.
 %%%
 %%% @end
 %%%-----------------------------------------------------------------------------
 -module(emqttd_auth_anonymous).
 
--author('feng@emqtt.io').
+-author("Feng Lee <feng@emqtt.io>").
 
 -behaviour(emqttd_auth_mod).
 
@@ -34,7 +34,7 @@
 
 init(Opts) -> {ok, Opts}.
 
-check(_User, _Password, _Opts) -> ok.
+check(_Client, _Password, _Opts) -> ok.
 
 description() -> "Anonymous authentication module".
 

@@ -1,5 +1,5 @@
 %%%-----------------------------------------------------------------------------
-%%% @Copyright (C) 2012-2015, Feng Lee <feng@emqtt.io>
+%%% Copyright (c) 2012-2015 eMQTT.IO, All Rights Reserved.
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -26,7 +26,7 @@
 %%%-----------------------------------------------------------------------------
 -module(emqttd_msg_store).
 
--author('feng@slimpp.io').
+-author("Feng Lee <feng@emqtt.io>").
 
 -include_lib("emqtt/include/emqtt.hrl").
 
@@ -58,9 +58,7 @@ mnesia(copy) ->
 %%%=============================================================================
 
 %%%-----------------------------------------------------------------------------
-%% @doc
-%% Retain message.
-%%
+%% @doc Retain message
 %% @end
 %%%-----------------------------------------------------------------------------
 -spec retain(mqtt_message()) -> ok | ignore.
@@ -94,13 +92,16 @@ limit(payload) ->
 env() -> 
     case get({env, retained}) of
         undefined ->
-            {ok, Env} = application:get_env(emqttd, retained),
+            Env = emqttd_broker:env(retained),
             put({env, retained}, Env), Env;
         Env -> 
             Env
     end.
 
-%% @doc redeliver retained messages to subscribed client.
+%%%-----------------------------------------------------------------------------
+%% @doc Redeliver retained messages to subscribed client
+%% @end
+%%%-----------------------------------------------------------------------------
 -spec redeliver(Topic, CPid) -> any() when
         Topic  :: binary(),
         CPid   :: pid().
@@ -125,5 +126,4 @@ dispatch(CPid, Msgs) when is_list(Msgs) ->
     CPid ! {dispatch, {self(), [Msg || Msg <- Msgs]}};
 dispatch(CPid, Msg) when is_record(Msg, mqtt_message) ->
     CPid ! {dispatch, {self(), Msg}}.
-
 

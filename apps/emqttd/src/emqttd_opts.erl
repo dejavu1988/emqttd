@@ -1,5 +1,5 @@
 %%%-----------------------------------------------------------------------------
-%%% @Copyright (C) 2012-2015, Feng Lee <feng@emqtt.io>
+%%% Copyright (c) 2012-2015 eMQTT.IO, All Rights Reserved.
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -26,8 +26,14 @@
 %%%-----------------------------------------------------------------------------
 -module(emqttd_opts).
 
+-author("Feng Lee <feng@emqtt.io>").
+
 -export([merge/2]).
 
+%%------------------------------------------------------------------------------
+%% @doc Merge Options
+%% @end
+%%------------------------------------------------------------------------------
 merge(Defaults, Options) ->
     lists:foldl(
         fun({Opt, Val}, Acc) ->
@@ -43,6 +49,4 @@ merge(Defaults, Options) ->
                     false -> [Opt | Acc]
                 end
         end, Defaults, Options).
-
-
 

@@ -1,5 +1,5 @@
 %%%-----------------------------------------------------------------------------
-%%% @Copyright (C) 2012-2015, Feng Lee <feng@emqtt.io>
+%%% Copyright (c) 2012-2015 eMQTT.IO, All Rights Reserved.
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -20,17 +20,19 @@
 %%% SOFTWARE.
 %%%-----------------------------------------------------------------------------
 %%% @doc
-%%% emqtt topic.
+%%% MQTT Topic
 %%%
 %%% @end
 %%%-----------------------------------------------------------------------------
 -module(emqtt_topic).
 
--author('feng@emqtt.io').
+-author("Feng Lee <feng@emqtt.io>").
 
 -import(lists, [reverse/1]).
  
 -export([match/2, validate/1, triples/1, words/1, wildcard/1]).
+
+-export([systop/1]).
 
 %-type type()   :: static | dynamic.
 
@@ -42,12 +44,10 @@
 
 -export_type([word/0, triple/0]).
 
--define(MAX_TOPIC_LEN, 65535).
+-define(MAX_TOPIC_LEN, 4096).
 
 %%%-----------------------------------------------------------------------------
-%% @doc
-%% Is wildcard topic?
-%%
+%% @doc Is wildcard topic?
 %% @end
 %%%-----------------------------------------------------------------------------
 -spec wildcard(binary()) -> true | false.
@@ -62,12 +62,10 @@ wildcard(['+'|_]) ->
 wildcard([_H|T]) ->
     wildcard(T).
 
-%%%-----------------------------------------------------------------------------
-%% @doc
-%% Match Topic name with filter.
-%%
+%%------------------------------------------------------------------------------
+%% @doc Match Topic name with filter
 %% @end
-%%%-----------------------------------------------------------------------------
+%%------------------------------------------------------------------------------
 -spec match(Name, Filter) -> boolean() when
     Name    :: binary() | words(),
     Filter  :: binary() | words().
@@ -92,12 +90,10 @@ match([_H1|_], []) ->
 match([], [_H|_T2]) ->
 	false.
 
-%%%-----------------------------------------------------------------------------
-%% @doc
-%% Validate Topic
-%%
+%%------------------------------------------------------------------------------
+%% @doc Validate Topic
 %% @end
-%%%-----------------------------------------------------------------------------
+%%------------------------------------------------------------------------------
 -spec validate({name | filter, binary()}) -> boolean().
 validate({_, <<>>}) ->
 	false;
@@ -133,9 +129,7 @@ validate3(<<_/utf8, Rest/binary>>) ->
     validate3(Rest).
 
 %%%-----------------------------------------------------------------------------
-%% @doc
-%% Topic to Triples.
-%%
+%% @doc Topic to Triples
 %% @end
 %%%-----------------------------------------------------------------------------
 -spec triples(binary()) -> list(triple()).
@@ -159,12 +153,10 @@ bin('+') -> <<"+">>;
 bin('#') -> <<"#">>;
 bin(B) when is_binary(B) -> B.
 
-%%%-----------------------------------------------------------------------------
-%% @doc
-%% Split Topic to Words.
-%%
+%%------------------------------------------------------------------------------
+%% @doc Split Topic Path to Words
 %% @end
-%%%-----------------------------------------------------------------------------
+%%------------------------------------------------------------------------------
 -spec words(binary()) -> words().
 words(Topic) when is_binary(Topic) ->
     [word(W) || W <- binary:split(Topic, <<"/">>, [global])].
@@ -173,4 +165,15 @@ word(<<>>)    -> '';
 word(<<"+">>) -> '+';
 word(<<"#">>) -> '#';
 word(Bin)     -> Bin.
+
+%%------------------------------------------------------------------------------
+%% @doc '$SYS' Topic.
+%% @end
+%%------------------------------------------------------------------------------
+
+systop(Name) when is_atom(Name) ->
+    list_to_binary(lists:concat(["$SYS/brokers/", node(), "/", Name]));
+
+systop(Name) when is_binary(Name) ->
+    list_to_binary(["$SYS/brokers/", atom_to_list(node()), "/", Name]).
 

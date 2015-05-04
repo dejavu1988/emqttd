@@ -1,17 +1,30 @@
-0.5.5
+
+v0.9.0-alpha (2015-05-30)
 -------------------------
 
-static, dynmaic, bridge types of topic and trie node
 
-try_to_remove topic node
-
-
-v0.6.0-alpha (2015-03-20)
+v0.8.0-alpha (2015-05-10)
 -------------------------
 
-Plugin Architecture
+Documents...
 
-Mnesia Authentication
+MySQL Auth
+
+Dashboard
+
+AMQP
+
+Bridge Test
+
+
+0.8.0 (2015-05-10)
+-------------------------
+
+Presence Management....
+
+Force Subscription...
+
+Point2Point Queue...
 
 MySQL Auth
 
@@ -19,32 +32,19 @@ LDAP Auth
 
 PG Auth
 
-Mnesia ACL
-
 MySQL ACL
 
 Retained Message...
 
-0.6.0
-=====
-
 Tsung MQTT Test
 
-v0.9.0-alpha (2015-03-20)
+
+0.7.1-alpha (2015-05-05)
 -------------------------
 
-emqtt_sm, emqtt_cm, emqtt_pubsub performance issue...
+Bugfix
 
-v0.8.0-alpha (2015-03-20)
--------------------------
-
-MQTT/WebSocket
-
-v0.7.0-alpha (2015-03-20)
--------------------------
-
-Admin Console
-
+Admin Dashboard
 
 one million connections test...
 
@@ -54,25 +54,6 @@ Dialyzer ...
 
 full test cases...
 
-spawn_link to replace 'spawn' and 'link'
+README.md: add "Supports and Contact" include IRC,  mailling-list, email.
 
-=======
-## ACL
-
-## Authentication with clientId
-
-## SSL/TLS Socket
-
-## $SYS/topics and Broker statistics...
-
-## Cluster 
-
-## Bridge
-
-## Websocket
-
-## MQTT over Websocket
-
-## Mnesia 
-
-Create Schema...
+Document
